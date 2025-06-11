@@ -21,6 +21,7 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
+    "auto-launch": "^5.0.6",
     "electron-store": "^8.1.0",
     "png-to-ico": "^2.1.8"
   },
