@@ -1,0 +1,73 @@
+{
+  "name": "nextext",
+  "version": "1.0.0",
+  "description": "NextExt Enhanced Notepad",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "watch-css": "tailwindcss -i ./src/renderer/input.css -o ./src/renderer/output.css --watch",
+    "start-electron": "electron .",
+    "dev": "concurrently \"npm:watch-css\" \"npm:start-electron\"",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "notepad",
+    "editor",
+    "electron"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "png-to-ico": "^2.1.8"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "electron": "^23.1.1",
+    "electron-builder": "^24.0.0",
+    "sharp": "^0.32.6",
+    "tailwindcss": "^3.2.7"
+  },
+  "build": {
+    "appId": "com.yourcompany.nextext",
+    "productName": "NextExt",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icons/icon.icns"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icons/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "build/icons/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
