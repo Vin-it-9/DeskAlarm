@@ -13,7 +13,14 @@ contextBridge.exposeInMainWorld(
             const validChannels = [
                 'get-reminders',
                 'save-reminder',
-                'delete-reminder'
+                'delete-reminder',
+                'get-settings',
+                'save-settings',
+                'reset-app',
+                'remove-from-startup',
+                'schedule-progressive-notification',
+                'cancel-notification',
+                'check-channel-exists'
             ];
 
             if (validChannels.includes(channel)) {
@@ -728,54 +735,64 @@ ipcRenderer.on('animate-ui-element', (event, elementId, animationType) => {
 
 window.addEventListener('DOMContentLoaded', () => {
     try {
-        const styleSheet = document.createElement('style');
-        styleSheet.textContent = `
-            @keyframes shake {
-                0%, 100% { transform: translateX(0); }
-                10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-                20%, 40%, 60%, 80% { transform: translateX(5px); }
-            }
-            
-            .animate-shake {
-                animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-            }
-        `;
         if (document && document.head) {
+            const styleSheet = document.createElement('style');
+            styleSheet.textContent = `
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                    20%, 40%, 60%, 80% { transform: translateX(5px); }
+                }
+                
+                .animate-shake {
+                    animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+                }
+            `;
             document.head.appendChild(styleSheet);
         }
 
-        const versionElement = document.getElementById('app-version');
-        if (versionElement) {
-            versionElement.textContent = `GitRemind v${process.env.npm_package_version || '1.0.0'}`;
-        }
+        try {
+            const versionElement = document.getElementById('app-version');
+            if (versionElement) {
+                versionElement.textContent = `GitRemind v${process.env.npm_package_version || '1.0.0'}`;
+            }
+        } catch (e) { console.error('Error setting app version:', e); }
+        try {
+            const todayDateElements = document.querySelectorAll('.day-indicator span');
+            if (todayDateElements.length > 0) {
+                const today = new Date();
+                const formattedDate = today.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
 
-        const todayDateElements = document.querySelectorAll('.day-indicator span');
-        if (todayDateElements.length > 0) {
-            const today = new Date();
-            const formattedDate = today.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
+                todayDateElements.forEach(el => {
+                    if (el) el.textContent = `Today's Date: ${formattedDate}`;
+                });
+            }
+        } catch (e) { console.error('Error setting today date:', e); }
 
-            todayDateElements.forEach(el => {
-                el.textContent = `Today's Date: ${formattedDate}`;
-            });
-        }
-        const dateInputs = document.querySelectorAll('input[type="date"]');
-        if (dateInputs.length > 0) {
-            const today = new Date();
-            const formattedDate = today.toISOString().split('T')[0];
+        try {
+            const dateInputs = document.querySelectorAll('input[type="date"]');
+            if (dateInputs.length > 0) {
+                const today = new Date();
+                const formattedDate = today.toISOString().split('T')[0];
 
-            dateInputs.forEach(input => {
-                if (!input.value) {
-                    input.value = formattedDate;
-                }
-            });
-        }
-        if (typeof window.feather !== 'undefined') {
-            window.feather.replace();
-        }
+                dateInputs.forEach(input => {
+                    if (input && !input.value) {
+                        input.value = formattedDate;
+                    }
+                });
+            }
+        } catch (e) { console.error('Error setting default date inputs:', e); }
+
+        try {
+            if (typeof window.feather !== 'undefined') {
+                window.feather.replace();
+            }
+        } catch (e) { console.error('Error initializing feather icons:', e); }
+
     } catch (error) {
         console.error('Error in DOMContentLoaded handler:', error);
     }

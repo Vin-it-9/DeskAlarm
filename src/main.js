@@ -1,9 +1,9 @@
-
 const { app, BrowserWindow, ipcMain, Menu, Tray, shell, dialog, Notification, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const AutoLaunch = require('auto-launch');
 const isDevelopment = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let windowCreated = false;
 const notificationStages = new Map();
 const notificationImages = {
     leetcode: path.join(__dirname, '../assets/platforms/leetcode.png'),
@@ -45,8 +45,6 @@ let appSettings = {
     glassmorphismEffect: true,
     checkInterval: 5
 };
-
-
 
 const gitRemindAutoLauncher = new AutoLaunch({
     name: isDevelopment ? 'GitRemind-Dev' : 'GitRemind',
@@ -225,6 +223,8 @@ function createMainWindow() {
     app.commandLine.appendSwitch('disable-gpu-memory-buffer-video-frames');
     app.commandLine.appendSwitch('disable-accelerated-video-decode');
     app.commandLine.appendSwitch('disable-accelerated-video-encode');
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-software-rasterizer');
 
     const partitionName = isDevelopment ? 'persist:gitremind-dev' : 'persist:gitremind';
 
@@ -247,7 +247,11 @@ function createMainWindow() {
         },
         icon: resolveAssetPath('logo.png')
     });
-    mainWindow.webContents.openDevTools();
+    windowCreated = true;
+
+    if (isDevelopment) {
+        mainWindow.webContents.openDevTools();
+    }
 
     mainWindow.setMenu(null);
 
@@ -466,7 +470,9 @@ function checkReminders() {
         if (anyNotified) {
             saveReminders(reminders);
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error('Error checking reminders:', error);
+    }
 }
 
 function showNotification(reminder) {
@@ -484,7 +490,6 @@ function showNotification(reminder) {
         } else {
             notificationStages.set(reminder.id, stage);
         }
-
         let iconPath = notificationImages.default;
         if (reminder.reminderType && notificationImages[reminder.reminderType]) {
             iconPath = notificationImages[reminder.reminderType];
@@ -492,33 +497,102 @@ function showNotification(reminder) {
 
         if (!fs.existsSync(iconPath)) {
             iconPath = notificationImages.default;
+            if (!fs.existsSync(iconPath)) {
+                try {
+                    iconPath = resolveAssetPath('logo.png');
+                    if (!fs.existsSync(iconPath)) {
+                        iconPath = null;
+                    }
+                } catch (e) {
+                    iconPath = null;
+                }
+            }
         }
-
         let title = reminder.title;
         if (reminder.isProgressiveNotification) {
             let stageText = '';
+            let emoji = '';
+
             switch (stage) {
-                case 1: stageText = '[Initial] '; break;
-                case 2: stageText = '[Reminder] '; break;
-                case 3: stageText = '[Final Reminder] '; break;
-                case 4: stageText = '[Starting Now] '; break;
-                default: stageText = `[Reminder ${stage}] `;
+                case 1:
+                    stageText = 'Initial ';
+                    emoji = '📢 ';
+                    break;
+                case 2:
+                    stageText = 'Reminder ';
+                    emoji = '⏰ ';
+                    break;
+                case 3:
+                    stageText = 'Final Reminder ';
+                    emoji = '⚠️ ';
+                    break;
+                case 4:
+                    stageText = 'Starting Now ';
+                    emoji = '🚀 ';
+                    break;
+                default:
+                    stageText = `[Reminder ${stage}] `;
+                    emoji = '🔔 ';
             }
-            title = stageText + title;
+
+            title = emoji + stageText + title;
         }
 
         let body = reminder.description || '';
+
+        const now = new Date();
+        const formattedNow = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+
         if (reminder.reminderType && ['leetcode', 'codechef', 'codeforces', 'gfg', 'coding'].includes(reminder.reminderType)) {
+            const timeToEvent = getTimeToEvent(reminder);
+            const contestType = getReminderTypeName(reminder.reminderType);
+
+            if (stage === 1) {
+                body = `${body}\n\n🏆 Prepare for this ${contestType} contest!\n⏱️ ${timeToEvent}`;
+                if (reminder.reminderType === 'leetcode') {
+                    body += "\n💡 Don't forget to review your algorithms!";
+                } else if (reminder.reminderType === 'codechef') {
+                    body += "\n💡 Remember to check the problem constraints!";
+                } else if (reminder.reminderType === 'codeforces') {
+                    body += "\n💡 Prepare your competitive templates!";
+                } else if (reminder.reminderType === 'gfg') {
+                    body += "\n💡 Focus on interview-style questions!";
+                }
+            } else if (stage === 2) {
+                body = `${body}\n\n⏰ Your ${contestType} contest is approaching!\n⏱️ ${timeToEvent}\n💻 Time to warm up!`;
+            } else if (stage === 3) {
+                body = `${body}\n\n⚠️ Final reminder: ${contestType} contest\n⏱️ ${timeToEvent}\n🔧 Prepare your environment!`;
+            } else if (stage === 4) {
+                body = `${body}\n\n🚀 ${contestType} contest is starting now!\n🍀 Good luck!\n💪 You've got this!`;
+            } else {
+                body = `${body}\n\n⏱️ ${timeToEvent}`;
+            }
+        } else if (reminder.reminderType === 'meeting') {
             const timeToEvent = getTimeToEvent(reminder);
 
             if (stage === 1) {
-                body = `${body}\nPrepare for this ${getReminderTypeName(reminder.reminderType)} contest! ${timeToEvent}`;
+                body = `${body}\n\n👥 Upcoming meeting\n⏱️ ${timeToEvent}`;
             } else if (stage === 4) {
-                body = `${body}\nContest is starting now! Good luck!`;
+                body = `${body}\n\n🔔 Your meeting is starting now!\n📝 Don't forget your notes!`;
             } else {
-                body = `${body}\n${timeToEvent}`;
+                body = `${body}\n\n⏱️ ${timeToEvent}`;
+            }
+        } else if (reminder.reminderType === 'deadline') {
+            const timeToEvent = getTimeToEvent(reminder);
+
+            if (stage === 1) {
+                body = `${body}\n\n⏳ Deadline approaching\n⏱️ ${timeToEvent}\n✅ Start working on this now!`;
+            } else if (stage === 4) {
+                body = `${body}\n\n⚠️ Deadline is now!\n🔴 Final submission time!`;
+            } else {
+                body = `${body}\n\n⌛ ${timeToEvent} remaining`;
             }
         }
+
+        const reminderDate = new Date(reminder.date + 'T' + reminder.time);
+        const formattedDateTime = reminderDate.toLocaleString();
+        body += `\n\n📅 ${formattedDateTime}`;
+        const urgencyLevel = calculateUrgencyLevel(reminder, stage);
 
         const notification = new Notification({
             title: title,
@@ -526,7 +600,7 @@ function showNotification(reminder) {
             icon: iconPath,
             silent: !appSettings.playSoundOnNotification,
             timeoutType: 'never',
-            urgency: stage >= 3 ? 'critical' : 'normal',
+            urgency: urgencyLevel,
             hasReply: false,
             closeButtonText: 'Dismiss'
         });
@@ -535,25 +609,34 @@ function showNotification(reminder) {
         notification.show();
 
         if (appSettings.playSoundOnNotification) {
-            shell.beep();
+            if (stage >= 3) {
+                shell.beep();
+                setTimeout(() => shell.beep(), 300);
+            } else {
+                shell.beep();
+            }
         }
 
         notification.on('click', () => {
             if (!windowCreated) {
-                createMainWindow(true);
+                createMainWindow();
             } else if (mainWindow) {
                 mainWindow.show();
                 mainWindow.focus();
             }
+
             setTimeout(() => {
                 if (mainWindow && mainWindow.webContents) {
                     mainWindow.webContents.send('show-reminder', reminder.id);
+                    mainWindow.webContents.send('update-status', {
+                        message: `Opened reminder: ${reminder.title}`,
+                        type: 'info'
+                    });
                 }
             }, 500);
 
             notification.close();
         });
-
         notification.on('close', () => {
             activeNotifications.delete(reminder.id);
         });
@@ -570,62 +653,87 @@ function showNotification(reminder) {
 
         if (reminder.isProgressiveNotification && stage < 4) {
             scheduleProgressiveNotification(reminder, stage);
+            console.log(`Scheduled next notification (stage ${stage+1}) for reminder: ${reminder.title}`);
         }
+        return true;
     } catch (error) {
         console.error('Error showing notification:', error);
 
-        if (!windowCreated && (reminder.reminderType === 'deadline' ||
-            ['leetcode', 'codechef', 'codeforces', 'gfg'].includes(reminder.reminderType))) {
-            createMainWindow(true);
-            setTimeout(() => {
-                if (mainWindow && mainWindow.webContents) {
-                    mainWindow.webContents.send('show-reminder-fallback', reminder);
-                }
-            }, 1000);
-        } else if (mainWindow && mainWindow.webContents) {
-            mainWindow.webContents.send('show-reminder-fallback', reminder);
+        try {
+            if (!windowCreated) {
+                createMainWindow();
+                setTimeout(() => {
+                    if (mainWindow && mainWindow.webContents) {
+                        mainWindow.webContents.send('show-reminder-fallback', reminder);
+                    }
+                }, 1000);
+            } else if (mainWindow && mainWindow.webContents) {
+                mainWindow.webContents.send('show-reminder-fallback', reminder);
+            }
+        } catch (fallbackError) {
+            console.error('Even fallback notification failed:', fallbackError);
         }
+
+        return false;
     }
 }
 
-function scheduleProgressiveNotification(reminder, currentStage) {
-    // Calculate time for next notification based on stage
-    let nextNotificationTime;
-    const eventTime = new Date(reminder.date + 'T' + reminder.time);
-    const now = new Date();
-
-    switch(currentStage) {
-        case 1: // Initial -> schedule for 1 day before
-            nextNotificationTime = new Date(eventTime);
-            nextNotificationTime.setDate(nextNotificationTime.getDate() - 1);
-            // If already less than a day, schedule for 3 hours before
-            if (nextNotificationTime < now) {
-                nextNotificationTime = new Date(eventTime);
-                nextNotificationTime.setHours(nextNotificationTime.getHours() - 3);
-            }
-            break;
-
-        case 2: // 1 day before -> schedule for 1 hour before
-            nextNotificationTime = new Date(eventTime);
-            nextNotificationTime.setHours(nextNotificationTime.getHours() - 1);
-            break;
-
-        case 3: // 1 hour before -> schedule for start time
-            nextNotificationTime = new Date(eventTime);
-            break;
-
-        default:
-            return; // No more notifications after stage 4
+function calculateUrgencyLevel(reminder, stage) {
+    let urgency = 'normal';
+    if (stage >= 3) {
+        urgency = 'critical';
+    }
+    if (reminder.reminderType === 'deadline') {
+        if (stage >= 2) {
+            urgency = 'critical';
+        }
+    }
+    if (stage === 4) {
+        urgency = 'critical';
     }
 
-    // Only schedule if the next notification time is in the future
-    if (nextNotificationTime > now) {
-        const timeUntilNext = nextNotificationTime.getTime() - now.getTime();
-        setTimeout(() => {
-            // Create a copy of the reminder with progressive flag
-            const progressiveReminder = { ...reminder, isProgressiveNotification: true };
-            showNotification(progressiveReminder);
-        }, timeUntilNext);
+    return urgency;
+}
+
+
+function scheduleProgressiveNotification(reminder, currentStage) {
+    try {
+        let nextNotificationTime;
+        const eventTime = new Date(reminder.date + 'T' + reminder.time);
+        const now = new Date();
+
+        switch(currentStage) {
+            case 1:
+                nextNotificationTime = new Date(eventTime);
+                nextNotificationTime.setDate(nextNotificationTime.getDate() - 1);
+                if (nextNotificationTime < now) {
+                    nextNotificationTime = new Date(eventTime);
+                    nextNotificationTime.setHours(nextNotificationTime.getHours() - 3);
+                }
+                break;
+
+            case 2:
+                nextNotificationTime = new Date(eventTime);
+                nextNotificationTime.setHours(nextNotificationTime.getHours() - 1);
+                break;
+
+            case 3:
+                nextNotificationTime = new Date(eventTime);
+                break;
+
+            default:
+                return;
+        }
+
+        if (nextNotificationTime > now) {
+            const timeUntilNext = nextNotificationTime.getTime() - now.getTime();
+            setTimeout(() => {
+                const progressiveReminder = { ...reminder, isProgressiveNotification: true };
+                showNotification(progressiveReminder);
+            }, timeUntilNext);
+        }
+    } catch (error) {
+        console.error('Error scheduling progressive notification:', error);
     }
 }
 
@@ -677,16 +785,6 @@ function setupIPC() {
         }
     });
 
-    ipcMain.handle('schedule-progressive-notification', (event, reminder) => {
-        try {
-            const progressiveReminder = { ...reminder, isProgressiveNotification: true };
-            showNotification(progressiveReminder);
-            return true;
-        } catch (error) {
-            return false;
-        }
-    });
-
     ipcMain.on('window-close', () => {
         if (mainWindow) {
             mainWindow.close();
@@ -701,7 +799,7 @@ function setupIPC() {
         try {
             let reminders = getReminders();
             if (reminder.isRecurring && reminder.recurrencePattern === 'weekly') {
-                reminder.weekdays = [];
+                reminder.weekdays = reminder.weekdays || [];
                 for (let i = 0; i < 7; i++) {
                     if (reminder[`weekday_${i}`]) {
                         reminder.weekdays.push(i);
@@ -725,6 +823,7 @@ function setupIPC() {
             saveReminders(reminders);
             return reminder;
         } catch (error) {
+            console.error('Error saving reminder:', error);
             return null;
         }
     });
@@ -736,6 +835,27 @@ function setupIPC() {
             saveReminders(reminders);
             return true;
         } catch (error) {
+            console.error('Error deleting reminder:', error);
+            return false;
+        }
+    });
+
+    ipcMain.handle('schedule-progressive-notification', (event, reminder) => {
+        try {
+            if (!reminder) {
+                console.error('No reminder provided to schedule-progressive-notification');
+                return false;
+            }
+
+            const progressiveReminder = {
+                ...reminder,
+                isProgressiveNotification: true
+            };
+
+            showNotification(progressiveReminder);
+            return true;
+        } catch (error) {
+            console.error('Error in schedule-progressive-notification:', error);
             return false;
         }
     });
@@ -775,6 +895,7 @@ function setupIPC() {
 
             return appSettings;
         } catch (error) {
+            console.error('Error saving settings:', error);
             return appSettings;
         }
     });
@@ -799,6 +920,7 @@ function setupIPC() {
             app.exit();
             return true;
         } catch (error) {
+            console.error('Error resetting app:', error);
             return false;
         }
     });
@@ -810,8 +932,15 @@ function setupIPC() {
             saveSettings();
             return true;
         } catch (error) {
+            console.error('Error removing from startup:', error);
             return false;
         }
+    });
+
+    ipcMain.handle('check-channel-exists', (event, channelName) => {
+        return ['get-reminders', 'save-reminder', 'delete-reminder', 'get-settings',
+            'save-settings', 'reset-app', 'remove-from-startup',
+            'schedule-progressive-notification'].includes(channelName);
     });
 }
 
@@ -848,6 +977,8 @@ app.whenReady().then(() => {
         }
 
         process.on('uncaughtException', (error) => {
+            console.error('Uncaught exception:', error);
+
             if (mainWindow) {
                 dialog.showMessageBox(mainWindow, {
                     type: 'error',
@@ -872,6 +1003,8 @@ app.whenReady().then(() => {
         reminderCheckInterval = setInterval(checkReminders, checkIntervalMs);
         setTimeout(checkReminders, 1000);
     } catch (error) {
+        console.error('Startup error:', error);
+
         dialog.showErrorBox(
             'GitRemind Startup Error',
             `An error occurred during startup: ${error.message}`

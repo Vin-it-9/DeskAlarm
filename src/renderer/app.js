@@ -61,6 +61,7 @@ const state = {
     animationDuration: 300,
     notifications: [],
     progressiveNotifications: new Map(),
+    formProcessing: false,
     notificationThemes: {
         leetcode: {
             color: '#ffa116',
@@ -111,7 +112,6 @@ const state = {
 };
 
 async function initApp() {
-    console.log("Initializing GitRemind app...");
     await loadSettings();
     applySettings();
     setupEventListeners();
@@ -119,13 +119,12 @@ async function initApp() {
     renderCalendar();
     updateUpcomingReminders();
     updateDisplayDates();
+    window.addEventListener('focus', recoverInputFocus);
 }
 
 async function loadSettings() {
     try {
-        console.log("Loading settings...");
         const settings = await window.api.settings.get();
-        console.log("Settings loaded:", settings);
         state.settings = { ...state.settings, ...settings };
     } catch (error) {
         console.error('Error loading settings:', error);
@@ -133,7 +132,6 @@ async function loadSettings() {
 }
 
 function applySettings() {
-    console.log("Applying settings to UI...");
 
     if (elements.startWithSystem) {
         elements.startWithSystem.checked = state.settings.startWithSystem;
@@ -191,7 +189,6 @@ function applyGlassmorphismEffect() {
 }
 
 function setupEventListeners() {
-    console.log("Setting up event listeners...");
 
     if (elements.settingsBtn && elements.settingsPanel && elements.settingsOverlay) {
         elements.settingsBtn.addEventListener('click', () => {
@@ -352,6 +349,7 @@ function setupEventListeners() {
     }
 
     if (elements.reminderForm) {
+        elements.reminderForm.removeEventListener('submit', handleReminderSubmit);
         elements.reminderForm.addEventListener('submit', handleReminderSubmit);
     }
 
@@ -369,8 +367,19 @@ function setupEventListeners() {
         });
     }
 
+    setupWeekdayHandlers();
+}
+
+function setupWeekdayHandlers() {
     document.querySelectorAll('.weekday-item').forEach(item => {
-        item.addEventListener('click', function() {
+        const newItem = item.cloneNode(true);
+        item.parentNode.replaceChild(newItem, item);
+
+        newItem.addEventListener('click', function(e) {
+            if (e.target !== this.querySelector('input[type="checkbox"]')) {
+                e.preventDefault();
+            }
+
             const checkbox = this.querySelector('input[type="checkbox"]');
             if (checkbox) {
                 checkbox.checked = !checkbox.checked;
@@ -391,13 +400,19 @@ function setupEventListeners() {
             } else {
                 item.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
             }
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    item.classList.add('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                } else {
+                    item.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                }
+            });
         }
     });
 }
 
 async function saveSettings() {
     try {
-        console.log("Saving settings...");
         const updatedSettings = {
             startWithSystem: elements.startWithSystem.checked,
             minimizeToTray: elements.minimizeToTray.checked,
@@ -406,16 +421,28 @@ async function saveSettings() {
             glassmorphismEffect: elements.glassmorphismEffect.checked
         };
 
-        console.log("New settings:", updatedSettings);
         state.settings = await window.api.settings.save(updatedSettings);
 
         showNotification('Settings saved successfully', 'success');
 
-        console.log("Settings saved successfully");
     } catch (error) {
         console.error('Error saving settings:', error);
         showNotification('Failed to save settings', 'error');
     }
+}
+function recoverInputFocus() {
+    setTimeout(() => {
+        const tempInput = document.createElement('input');
+        tempInput.style.position = 'absolute';
+        tempInput.style.opacity = '0';
+        document.body.appendChild(tempInput);
+        tempInput.focus();
+        document.body.removeChild(tempInput);
+        state.formProcessing = false;
+        document.querySelectorAll('input, select, textarea, button').forEach(el => {
+            el.removeAttribute('disabled');
+        });
+    }, 100);
 }
 
 function renderCalendar() {
@@ -539,6 +566,8 @@ function getDayOfWeek(date) {
 }
 
 function formatTime(timeString) {
+    if (!timeString) return '';
+
     const [hours, minutes] = timeString.split(':');
     const hour = parseInt(hours, 10);
     const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -654,70 +683,24 @@ function showRemindersForDay(date) {
 
 function createReminderElement(reminder, displayDate = null) {
     const reminderEl = document.createElement('div');
-    reminderEl.className = 'bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-700 hover:border-blue-500 hover:bg-opacity-70 transition-all duration-200 animate-fade-in shadow-md';
+    reminderEl.className = 'reminder-card animate-slide-up';
     reminderEl.dataset.id = reminder.id;
 
     if (reminder.isRecurring && displayDate) {
         const dateString = formatDateString(displayDate);
         reminderEl.dataset.instanceDate = dateString;
     }
+    const themeKey = reminder.reminderType || 'other';
+    const theme = state.notificationThemes[themeKey] || state.notificationThemes.other;
 
-    let typeIcon = 'bell';
-    let typeBadgeClass = 'type-other';
-    let borderColor = '#8b949e';
-
-    switch(reminder.reminderType) {
-        case 'meeting':
-            typeIcon = 'users';
-            typeBadgeClass = 'type-meeting';
-            borderColor = '#3fb950';
-            break;
-        case 'deadline':
-            typeIcon = 'alert-triangle';
-            typeBadgeClass = 'type-deadline';
-            borderColor = '#f85149';
-            break;
-        case 'personal':
-            typeIcon = 'heart';
-            typeBadgeClass = 'type-personal';
-            borderColor = '#ff7b72';
-            break;
-        case 'leetcode':
-            typeIcon = 'code';
-            typeBadgeClass = 'type-leetcode';
-            borderColor = '#ffa116';
-            break;
-        case 'codechef':
-            typeIcon = 'award';
-            typeBadgeClass = 'type-codechef';
-            borderColor = '#764abc';
-            break;
-        case 'codeforces':
-            typeIcon = 'flag';
-            typeBadgeClass = 'type-codeforces';
-            borderColor = '#1c86ee';
-            break;
-        case 'gfg':
-            typeIcon = 'book';
-            typeBadgeClass = 'type-gfg';
-            borderColor = '#2ecc71';
-            break;
-        case 'coding':
-            typeIcon = 'terminal';
-            typeBadgeClass = 'type-coding';
-            borderColor = '#3498db';
-            break;
-    }
-
-    // Add a subtle border on the left to indicate the type
-    reminderEl.style.borderLeft = `4px solid ${borderColor}`;
+    reminderEl.style.borderLeft = `4px solid ${theme.color}`;
 
     let reminderContent = `
         <div class="flex justify-between items-start">
             <div class="flex-1">
-                <div class="flex items-center mb-1">
-                    <span class="type-badge ${typeBadgeClass} mr-2">
-                        <i data-feather="${typeIcon}" class="h-3 w-3 mr-1"></i>
+                <div class="flex items-center mb-2">
+                    <span class="type-badge mr-2" style="background-color: ${theme.backgroundColor}; color: ${theme.color}">
+                        <i data-feather="${theme.icon}" class="h-3 w-3 mr-1"></i>
                         ${formatReminderType(reminder.reminderType)}
                     </span>
     `;
@@ -745,11 +728,11 @@ function createReminderElement(reminder, displayDate = null) {
                 <div class="text-xs text-gray-500 mt-1">${reminder.notificationDuration} sec notification</div>
             </div>
         </div>
-        <div class="flex justify-end mt-3 space-x-2">
-            <button class="edit-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Edit">
+        <div class="flex justify-end mt-4 space-x-2">
+            <button class="edit-reminder p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-200 transition-all duration-200" title="Edit">
                 <i data-feather="edit-2" class="h-4 w-4"></i>
             </button>
-            <button class="delete-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Delete">
+            <button class="delete-reminder p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-200 transition-all duration-200" title="Delete">
                 <i data-feather="trash-2" class="h-4 w-4"></i>
             </button>
         </div>
@@ -757,13 +740,21 @@ function createReminderElement(reminder, displayDate = null) {
 
     reminderEl.innerHTML = reminderContent;
 
-    reminderEl.querySelector('.edit-reminder').addEventListener('click', () => {
-        editReminder(reminder);
-    });
+    const editBtn = reminderEl.querySelector('.edit-reminder');
+    if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            editReminder(reminder);
+        });
+    }
 
-    reminderEl.querySelector('.delete-reminder').addEventListener('click', () => {
-        deleteReminder(reminder.id);
-    });
+    const deleteBtn = reminderEl.querySelector('.delete-reminder');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            deleteReminder(reminder.id);
+        });
+    }
 
     return reminderEl;
 }
@@ -784,280 +775,304 @@ function formatReminderType(type) {
 
 async function loadReminders() {
     try {
-        console.log("Loading reminders...");
         const reminders = await window.api.invoke('get-reminders');
         state.reminders = reminders || [];
-        console.log(`Loaded ${state.reminders.length} reminders`);
+        return state.reminders;
     } catch (error) {
         console.error('Error loading reminders:', error);
         state.reminders = [];
+        return [];
     }
 }
 
 function updateUpcomingReminders() {
-    elements.upcomingReminders.innerHTML = '';
+    try {
+        elements.upcomingReminders.innerHTML = '';
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const upcoming = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcoming = [];
 
-    for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(today);
-        currentDate.setDate(today.getDate() + i);
-        state.reminders.forEach(reminder => {
-            if (reminderOccursOnDate(reminder, currentDate)) {
-                const reminderInstance = {
-                    ...reminder,
-                    instanceDate: formatDateString(currentDate)
-                };
-                upcoming.push(reminderInstance);
-            }
-        });
-    }
+        for (let i = 0; i < 7; i++) {
+            const currentDate = new Date(today);
+            currentDate.setDate(today.getDate() + i);
 
-    upcoming.sort((a, b) => {
-        if (a.instanceDate !== b.instanceDate) {
-            return a.instanceDate.localeCompare(b.instanceDate);
-        }
-        return a.time.localeCompare(b.time);
-    });
-
-    if (upcoming.length === 0) {
-        const noUpcoming = document.createElement('div');
-        noUpcoming.className = 'flex items-center text-sm text-gray-400 py-2 px-3 rounded-lg bg-gray-800 bg-opacity-30';
-        noUpcoming.innerHTML = `
-            <i data-feather="calendar" class="h-4 w-4 mr-2 text-gray-500"></i>
-            No upcoming reminders
-        `;
-        elements.upcomingReminders.appendChild(noUpcoming);
-    } else {
-        upcoming.slice(0, 5).forEach((reminderItem, index) => {
-            const reminderDate = new Date(reminderItem.instanceDate + 'T' + reminderItem.time);
-            const isToday = new Date(reminderItem.instanceDate).setHours(0, 0, 0, 0) === today.getTime();
-
-            const reminderEl = document.createElement('div');
-            reminderEl.className = 'text-sm p-3 hover:bg-gray-800 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800 bg-opacity-30 border border-transparent hover:border-gray-700';
-            reminderEl.style.opacity = '0';
-            reminderEl.style.animation = `slideUp 0.3s ease forwards ${index * 0.05}s`;
-
-            let dateText;
-            if (isToday) {
-                dateText = 'Today';
-            } else {
-                const tomorrow = new Date(today);
-                tomorrow.setDate(today.getDate() + 1);
-                const isTomorrow = new Date(reminderItem.instanceDate).setHours(0, 0, 0, 0) === tomorrow.getTime();
-
-                if (isTomorrow) {
-                    dateText = 'Tomorrow';
-                } else {
-                    dateText = reminderDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            state.reminders.forEach(reminder => {
+                if (reminderOccursOnDate(reminder, currentDate)) {
+                    const reminderInstance = {
+                        ...reminder,
+                        instanceDate: formatDateString(currentDate)
+                    };
+                    upcoming.push(reminderInstance);
                 }
-            }
-
-            // Get appropriate icon based on reminder type
-            let typeIcon = 'bell';
-            let iconColor = 'text-blue-400';
-
-            switch(reminderItem.reminderType) {
-                case 'meeting':
-                    typeIcon = 'users';
-                    break;
-                case 'deadline':
-                    typeIcon = 'alert-triangle';
-                    iconColor = 'text-red-400';
-                    break;
-                case 'personal':
-                    typeIcon = 'heart';
-                    iconColor = 'text-pink-400';
-                    break;
-                case 'leetcode':
-                    typeIcon = 'code';
-                    iconColor = 'text-yellow-400';
-                    break;
-                case 'codechef':
-                    typeIcon = 'award';
-                    iconColor = 'text-purple-400';
-                    break;
-                case 'codeforces':
-                    typeIcon = 'flag';
-                    iconColor = 'text-blue-500';
-                    break;
-                case 'gfg':
-                    typeIcon = 'book';
-                    iconColor = 'text-green-400';
-                    break;
-                case 'coding':
-                    typeIcon = 'terminal';
-                    break;
-            }
-
-            let reminderContent = `
-                <div class="flex items-start">
-                    <div class="p-1.5 rounded-full bg-blue-900 bg-opacity-20 mr-2.5 mt-0.5">
-                        <i data-feather="${typeIcon}" class="h-3 w-3 ${iconColor}"></i>
-                    </div>
-                    <div class="flex-1">
-                        <div class="font-semibold">${reminderItem.title}</div>
-                        <div class="flex justify-between mt-1 text-xs text-gray-400">
-                            <span class="flex items-center">
-                                <i data-feather="calendar" class="h-3 w-3 mr-1"></i>
-                                ${dateText}
-                            </span>
-                            <span class="flex items-center">
-                                <i data-feather="clock" class="h-3 w-3 mr-1"></i>
-                                ${formatTime(reminderItem.time)}
-                            </span>
-                        </div>
-            `;
-
-            if (reminderItem.isRecurring) {
-                reminderContent += `
-                        <div class="mt-1.5">
-                            <span class="text-xs text-purple-400 flex items-center">
-                                <i data-feather="repeat" class="h-3 w-3 mr-1"></i>
-                                Recurring
-                            </span>
-                        </div>
-                `;
-            }
-
-            reminderContent += `
-                    </div>
-                </div>
-            `;
-
-            reminderEl.innerHTML = reminderContent;
-
-            reminderEl.addEventListener('click', () => {
-                selectDay(new Date(reminderItem.instanceDate));
             });
+        }
 
-            elements.upcomingReminders.appendChild(reminderEl);
+        upcoming.sort((a, b) => {
+            if (a.instanceDate !== b.instanceDate) {
+                return a.instanceDate.localeCompare(b.instanceDate);
+            }
+            return a.time.localeCompare(b.time);
         });
-    }
 
-    feather.replace();
+        if (upcoming.length === 0) {
+            const noUpcoming = document.createElement('div');
+            noUpcoming.className = 'flex items-center text-sm text-gray-400 py-2 px-3 rounded-lg bg-gray-800 bg-opacity-30';
+            noUpcoming.innerHTML = `
+                <i data-feather="calendar" class="h-4 w-4 mr-2 text-gray-500"></i>
+                No upcoming reminders
+            `;
+            elements.upcomingReminders.appendChild(noUpcoming);
+        } else {
+            upcoming.slice(0, 5).forEach((reminderItem, index) => {
+                const reminderDate = new Date(reminderItem.instanceDate + 'T' + reminderItem.time);
+                const isToday = new Date(reminderItem.instanceDate).setHours(0, 0, 0, 0) === today.getTime();
+
+                const reminderEl = document.createElement('div');
+                reminderEl.className = 'text-sm p-3 hover:bg-gray-800 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800 bg-opacity-30 border border-transparent hover:border-gray-700';
+                reminderEl.style.opacity = '0';
+                reminderEl.style.animation = `slideUp 0.3s ease forwards ${index * 0.05}s`;
+
+                let dateText;
+                if (isToday) {
+                    dateText = 'Today';
+                } else {
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(today.getDate() + 1);
+                    const isTomorrow = new Date(reminderItem.instanceDate).setHours(0, 0, 0, 0) === tomorrow.getTime();
+
+                    if (isTomorrow) {
+                        dateText = 'Tomorrow';
+                    } else {
+                        dateText = reminderDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    }
+                }
+
+                const themeKey = reminderItem.reminderType || 'other';
+                const theme = state.notificationThemes[themeKey] || state.notificationThemes.other;
+
+                let reminderContent = `
+                    <div class="flex items-start">
+                        <div class="p-1.5 rounded-full mr-2.5 mt-0.5" style="background-color: ${theme.backgroundColor}">
+                            <i data-feather="${theme.icon}" class="h-3 w-3" style="color: ${theme.color}"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold">${reminderItem.title}</div>
+                            <div class="flex justify-between mt-1 text-xs text-gray-400">
+                                <span class="flex items-center">
+                                    <i data-feather="calendar" class="h-3 w-3 mr-1"></i>
+                                    ${dateText}
+                                </span>
+                                <span class="flex items-center">
+                                    <i data-feather="clock" class="h-3 w-3 mr-1"></i>
+                                    ${formatTime(reminderItem.time)}
+                                </span>
+                            </div>
+                `;
+
+                if (reminderItem.isRecurring) {
+                    reminderContent += `
+                            <div class="mt-1.5">
+                                <span class="text-xs text-purple-400 flex items-center">
+                                    <i data-feather="repeat" class="h-3 w-3 mr-1"></i>
+                                    Recurring
+                                </span>
+                            </div>
+                    `;
+                }
+
+                reminderContent += `
+                        </div>
+                    </div>
+                `;
+
+                reminderEl.innerHTML = reminderContent;
+
+                reminderEl.addEventListener('click', () => {
+                    selectDay(new Date(reminderItem.instanceDate));
+                });
+
+                elements.upcomingReminders.appendChild(reminderEl);
+            });
+        }
+
+        feather.replace();
+    } catch (error) {
+        console.error('Error updating upcoming reminders:', error);
+
+        elements.upcomingReminders.innerHTML = `
+            <div class="text-sm p-3 text-gray-400">
+                <i data-feather="alert-circle" class="h-4 w-4 mr-2 inline"></i>
+                Error loading upcoming reminders
+            </div>
+        `;
+        feather.replace();
+    }
 }
 
 function showReminderForm(date = null) {
-    elements.reminderForm.reset();
-    elements.recurringOptions.classList.add('hidden');
-    elements.weekDaysSelector.classList.add('hidden');
-    elements.monthDaySelector.classList.add('hidden');
-    elements.occurrencesInput.classList.add('hidden');
-    elements.endDateInput.classList.add('hidden');
-    elements.recurringOptions.classList.remove('animate-fade-in');
-    elements.weekDaysSelector.classList.remove('animate-fade-in');
-    elements.monthDaySelector.classList.remove('animate-fade-in');
-    elements.occurrencesInput.classList.remove('animate-fade-in');
-    elements.endDateInput.classList.remove('animate-fade-in');
-    document.querySelectorAll('.weekday-item').forEach(item => {
-        item.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
-    });
+    try {
+        if (elements.reminderForm) {
+            elements.reminderForm.reset();
+        }
 
-    if (state.editingReminder) {
-        elements.reminderForm.title.value = state.editingReminder.title;
-        elements.reminderForm.description.value = state.editingReminder.description || '';
-        elements.reminderForm.date.value = state.editingReminder.date;
-        elements.reminderForm.time.value = state.editingReminder.time;
-        elements.reminderForm.reminderType.value = state.editingReminder.reminderType || 'meeting';
-        elements.reminderForm.notificationDuration.value = state.editingReminder.notificationDuration ||
-            state.settings.defaultNotificationDuration || 10;
+        elements.recurringOptions.classList.add('hidden');
+        elements.weekDaysSelector.classList.add('hidden');
+        elements.monthDaySelector.classList.add('hidden');
+        elements.occurrencesInput.classList.add('hidden');
+        elements.endDateInput.classList.add('hidden');
+        elements.recurringOptions.classList.remove('animate-fade-in');
+        elements.weekDaysSelector.classList.remove('animate-fade-in');
+        elements.monthDaySelector.classList.remove('animate-fade-in');
+        elements.occurrencesInput.classList.remove('animate-fade-in');
+        elements.endDateInput.classList.remove('animate-fade-in');
+        document.querySelectorAll('.weekday-item').forEach(item => {
+            item.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+        });
 
-        elements.isRecurringCheckbox.checked = state.editingReminder.isRecurring || false;
-        if (state.editingReminder.isRecurring) {
-            elements.recurringOptions.classList.remove('hidden');
-            setTimeout(() => {
-                elements.recurringOptions.classList.add('animate-fade-in');
-            }, 10);
+        if (state.editingReminder) {
+            elements.reminderForm.title.value = state.editingReminder.title || '';
+            elements.reminderForm.description.value = state.editingReminder.description || '';
+            elements.reminderForm.date.value = state.editingReminder.date || '';
+            elements.reminderForm.time.value = state.editingReminder.time || '';
+            elements.reminderForm.reminderType.value = state.editingReminder.reminderType || 'meeting';
+            elements.reminderForm.notificationDuration.value = state.editingReminder.notificationDuration ||
+                state.settings.defaultNotificationDuration || 10;
 
-            elements.recurrencePattern.value = state.editingReminder.recurrencePattern || 'daily';
+            if (state.editingReminder.isRecurring) {
+                elements.isRecurringCheckbox.checked = true;
+                elements.recurringOptions.classList.remove('hidden');
 
-            if (state.editingReminder.recurrencePattern === 'weekly' && state.editingReminder.weekdays) {
-                elements.weekDaysSelector.classList.remove('hidden');
                 setTimeout(() => {
-                    elements.weekDaysSelector.classList.add('animate-fade-in');
+                    elements.recurringOptions.classList.add('animate-fade-in');
                 }, 10);
 
-                for (let i = 0; i < 7; i++) {
-                    const checkbox = elements.reminderForm[`weekday_${i}`];
-                    if (checkbox) {
-                        checkbox.checked = state.editingReminder.weekdays.includes(i);
-                        if (checkbox.checked) {
-                            const item = checkbox.closest('.weekday-item');
-                            if (item) {
-                                item.classList.add('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                elements.recurrencePattern.value = state.editingReminder.recurrencePattern || 'daily';
+
+                if (state.editingReminder.recurrencePattern === 'weekly' && state.editingReminder.weekdays) {
+                    elements.weekDaysSelector.classList.remove('hidden');
+
+                    setTimeout(() => {
+                        elements.weekDaysSelector.classList.add('animate-fade-in');
+                    }, 10);
+
+                    for (let i = 0; i < 7; i++) {
+                        const checkbox = elements.reminderForm[`weekday_${i}`];
+                        if (checkbox) {
+                            checkbox.checked = state.editingReminder.weekdays.includes(i);
+                            if (checkbox.checked) {
+                                const item = checkbox.closest('.weekday-item');
+                                if (item) {
+                                    item.classList.add('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                                }
                             }
                         }
                     }
                 }
+
+                if (state.editingReminder.recurrencePattern === 'monthly') {
+                    elements.monthDaySelector.classList.remove('hidden');
+                    setTimeout(() => {
+                        elements.monthDaySelector.classList.add('animate-fade-in');
+                    }, 10);
+
+                    elements.reminderForm.monthDay.value = state.editingReminder.monthDay ||
+                        new Date(state.editingReminder.date).getDate();
+                }
+
+                elements.recurrenceEnd.value = state.editingReminder.recurrenceEnd || 'never';
+
+                if (state.editingReminder.recurrenceEnd === 'after') {
+                    elements.occurrencesInput.classList.remove('hidden');
+
+                    setTimeout(() => {
+                        elements.occurrencesInput.classList.add('animate-fade-in');
+                    }, 10);
+
+                    elements.reminderForm.occurrences.value = state.editingReminder.occurrences || 10;
+                } else if (state.editingReminder.recurrenceEnd === 'on-date') {
+                    elements.endDateInput.classList.remove('hidden');
+
+                    setTimeout(() => {
+                        elements.endDateInput.classList.add('animate-fade-in');
+                    }, 10);
+
+                    elements.reminderForm.endDate.value = state.editingReminder.endDate || '';
+                }
+            } else {
+                elements.isRecurringCheckbox.checked = false;
             }
-
-            if (state.editingReminder.recurrencePattern === 'monthly') {
-                elements.monthDaySelector.classList.remove('hidden');
-                setTimeout(() => {
-                    elements.monthDaySelector.classList.add('animate-fade-in');
-                }, 10);
-
-                elements.reminderForm.monthDay.value = state.editingReminder.monthDay ||
-                    new Date(state.editingReminder.date).getDate();
-            }
-
-            elements.recurrenceEnd.value = state.editingReminder.recurrenceEnd || 'never';
-            if (state.editingReminder.recurrenceEnd === 'after') {
-                elements.occurrencesInput.classList.remove('hidden');
-                setTimeout(() => {
-                    elements.occurrencesInput.classList.add('animate-fade-in');
-                }, 10);
-
-                elements.reminderForm.occurrences.value = state.editingReminder.occurrences || 10;
-            } else if (state.editingReminder.recurrenceEnd === 'on-date') {
-                elements.endDateInput.classList.remove('hidden');
-                setTimeout(() => {
-                    elements.endDateInput.classList.add('animate-fade-in');
-                }, 10);
-
-                elements.reminderForm.endDate.value = state.editingReminder.endDate || '';
-            }
-        }
-    } else {
-        elements.isRecurringCheckbox.checked = false;
-        elements.reminderForm.notificationDuration.value = state.settings.defaultNotificationDuration || 10;
-
-        if (date instanceof Date) {
-            elements.reminderForm.date.value = formatDateString(date);
-        } else if (state.selectedDate) {
-            elements.reminderForm.date.value = formatDateString(state.selectedDate);
         } else {
-            elements.reminderForm.date.value = formatDateString(new Date());
+            elements.isRecurringCheckbox.checked = false;
+            elements.reminderForm.notificationDuration.value = state.settings.defaultNotificationDuration || 10;
+            if (date instanceof Date) {
+                elements.reminderForm.date.value = formatDateString(date);
+            } else if (state.selectedDate) {
+                elements.reminderForm.date.value = formatDateString(state.selectedDate);
+            } else {
+                elements.reminderForm.date.value = formatDateString(new Date());
+            }
+
+            const now = new Date();
+            now.setMinutes(0);
+            now.setHours(now.getHours() + 1);
+            elements.reminderForm.time.value = `${String(now.getHours()).padStart(2, '0')}:00`;
         }
 
-        const now = new Date();
-        now.setMinutes(0);
-        now.setHours(now.getHours() + 1);
-        elements.reminderForm.time.value = `${String(now.getHours()).padStart(2, '0')}:00`;
+        elements.reminderFormContainer.classList.remove('hidden');
+
+        setTimeout(() => {
+            elements.reminderFormContainer.classList.add('animate-scale-in');
+            if (elements.reminderForm.title) {
+                elements.reminderForm.title.focus();
+            }
+        }, 10);
+
+    } catch (error) {
+        console.error('Error showing reminder form:', error);
+        showNotification('Error showing reminder form', 'error');
     }
-
-    elements.reminderFormContainer.classList.remove('hidden');
-    setTimeout(() => {
-        elements.reminderFormContainer.classList.add('animate-scale-in');
-        if (elements.reminderForm.title) {
-            elements.reminderForm.title.focus();
-        }
-    }, 10);
 }
 
 function hideReminderForm() {
     elements.reminderFormContainer.classList.remove('animate-scale-in');
+
     setTimeout(() => {
         elements.reminderFormContainer.classList.add('hidden');
         state.editingReminder = null;
+        state.formProcessing = false;
+        if (elements.reminderForm) {
+            elements.reminderForm.reset();
+        }
+        enableFormInputs();
+        recoverInputFocus();
     }, state.animationDuration);
+}
+
+function disableFormInputs() {
+    if (elements.reminderForm) {
+        Array.from(elements.reminderForm.elements).forEach(element => {
+            element.setAttribute('disabled', 'disabled');
+        });
+    }
+}
+
+function enableFormInputs() {
+    if (elements.reminderForm) {
+        Array.from(elements.reminderForm.elements).forEach(element => {
+            element.removeAttribute('disabled');
+        });
+    }
 }
 
 async function handleReminderSubmit(e) {
     e.preventDefault();
+    if (state.formProcessing) {
+        return;
+    }
+
+    state.formProcessing = true;
+    disableFormInputs();
 
     try {
         const reminder = {
@@ -1071,17 +1086,16 @@ async function handleReminderSubmit(e) {
             notified: false,
             isRecurring: elements.isRecurringCheckbox.checked
         };
-
         if (reminder.isRecurring) {
             reminder.recurrencePattern = elements.recurrencePattern.value;
             if (reminder.recurrencePattern === 'weekly') {
                 reminder.weekdays = [];
+
                 for (let i = 0; i < 7; i++) {
-                    if (elements.reminderForm[`weekday_${i}`].checked) {
+                    if (elements.reminderForm[`weekday_${i}`] && elements.reminderForm[`weekday_${i}`].checked) {
                         reminder.weekdays.push(i);
                     }
                 }
-
                 if (reminder.weekdays.length === 0) {
                     const reminderDate = new Date(reminder.date);
                     reminder.weekdays = [reminderDate.getDay()];
@@ -1101,33 +1115,54 @@ async function handleReminderSubmit(e) {
             }
         }
 
-        console.log("Sending reminder to main process:", reminder);
         const savedReminder = await window.api.invoke('save-reminder', reminder);
 
         if (savedReminder) {
+            hideReminderForm();
             await loadReminders();
             renderCalendar();
             updateUpcomingReminders();
+
             if (state.selectedDate) {
                 showRemindersForDay(state.selectedDate);
             }
-            if (['leetcode', 'codechef', 'codeforces', 'gfg', 'coding'].includes(reminder.reminderType)) {
-                const shouldScheduleProgressive = confirm("Would you like to receive progressive notifications for this coding contest?");
-                if (shouldScheduleProgressive) {
-                    window.api.invoke('schedule-progressive-notification', savedReminder);
-                    state.progressiveNotifications.set(savedReminder.id, true);
-                    showNotification("Progressive notifications scheduled for this contest", 'success');
-                }
+            const isCodingReminder = ['leetcode', 'codechef', 'codeforces', 'gfg', 'coding'].includes(reminder.reminderType);
+
+            if (isCodingReminder) {
+                setTimeout(() => {
+                    const shouldScheduleProgressive = confirm("Would you like to receive progressive notifications for this coding contest?");
+
+                    if (shouldScheduleProgressive) {
+                        try {
+                            window.api.invoke('schedule-progressive-notification', savedReminder)
+                                .then(() => {
+                                    state.progressiveNotifications.set(savedReminder.id, true);
+                                    showNotification("Progressive notifications scheduled for this contest", 'success');
+                                })
+                                .catch(err => {
+                                    console.error('Error scheduling progressive notification:', err);
+                                    showNotification("Failed to schedule progressive notifications", 'error');
+                                });
+                        } catch (error) {
+                            console.error('Error setting up progressive notification:', error);
+                        }
+                    }
+                }, 500);
             }
+
             showNotification(state.editingReminder ? 'Reminder updated successfully' : 'Reminder created successfully', 'success');
+            recoverInputFocus();
         } else {
             console.error("Failed to save reminder");
             showNotification("Failed to save reminder", 'error');
+            enableFormInputs();
         }
-        hideReminderForm();
     } catch (error) {
         console.error('Error saving reminder:', error);
         showNotification("An error occurred while saving the reminder", 'error');
+        enableFormInputs();
+    } finally {
+        state.formProcessing = false;
     }
 }
 
@@ -1140,20 +1175,22 @@ async function deleteReminder(id) {
     try {
         const confirmed = confirm('Are you sure you want to delete this reminder?');
         if (!confirmed) return;
-
-        console.log("Deleting reminder:", id);
         const success = await window.api.invoke('delete-reminder', id);
 
         if (success) {
-            console.log("Reminder deleted successfully");
+            if (state.progressiveNotifications.has(id)) {
+                state.progressiveNotifications.delete(id);
+            }
             await loadReminders();
             renderCalendar();
             updateUpcomingReminders();
+
             if (state.selectedDate) {
                 showRemindersForDay(state.selectedDate);
             }
 
             showNotification("Reminder deleted successfully", 'success');
+
         } else {
             console.error("Failed to delete reminder");
             showNotification("Failed to delete reminder", 'error');
@@ -1161,6 +1198,7 @@ async function deleteReminder(id) {
     } catch (error) {
         console.error('Error deleting reminder:', error);
         showNotification("An error occurred while deleting the reminder", 'error');
+        recoverInputFocus();
     }
 }
 
@@ -1172,19 +1210,21 @@ function showNotification(message, type = 'success') {
     notification.className = `notification notification-${type}`;
     let icon = 'check-circle';
     if (type === 'error') icon = 'alert-circle';
+    else if (type === 'info') icon = 'info';
+    else if (type === 'warning') icon = 'alert-triangle';
 
     notification.innerHTML = `
         <div class="flex items-center">
-            <i data-feather="${icon}" class="h-5 w-5 mr-2 ${type === 'success' ? 'text-green-400' : 'text-red-400'}"></i>
+            <i data-feather="${icon}" class="h-5 w-5 mr-2 ${type === 'success' ? 'text-green-400' : type === 'error' ? 'text-red-400' : type === 'warning' ? 'text-yellow-400' : 'text-blue-400'}"></i>
             <span>${message}</span>
         </div>
     `;
-
     document.body.appendChild(notification);
     feather.replace();
     setTimeout(() => {
         notification.style.opacity = '0';
         notification.style.transform = 'translateY(10px)';
+
         setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
@@ -1219,15 +1259,12 @@ if (window.api && window.api.receive) {
 
     window.api.receive('show-reminder-fallback', (reminder) => {
         try {
-            console.log("Showing fallback notification:", reminder.title);
-
             if (window.utils && window.utils.showFallbackNotification) {
                 window.utils.showFallbackNotification(
                     reminder.title,
                     reminder.description || 'Click to view reminder'
                 );
             }
-
             document.body.classList.add('animate-pulse');
             setTimeout(() => {
                 document.body.classList.remove('animate-pulse');
@@ -1251,6 +1288,8 @@ if (!window.api) {
             if (channel === 'get-reminders') return [];
             if (channel === 'save-reminder') return args[0];
             if (channel === 'delete-reminder') return true;
+            if (channel === 'schedule-progressive-notification') return true;
+            if (channel === 'check-channel-exists') return true;
             return null;
         },
         receive: (channel, callback) => {
@@ -1275,7 +1314,6 @@ if (!window.utils) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM loaded, initializing app...");
     feather.replace();
     initApp();
 });
