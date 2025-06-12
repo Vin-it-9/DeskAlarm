@@ -1,4 +1,3 @@
-
 const elements = {
     settingsBtn: document.getElementById('settingsBtn'),
     closeSettingsBtn: document.getElementById('closeSettingsBtn'),
@@ -17,7 +16,9 @@ const elements = {
     calendarDays: document.getElementById('calendarDays'),
 
     createReminderBtn: document.getElementById('createReminderBtn'),
+    createReminderBtnEmpty: document.getElementById('createReminderBtnEmpty'),
     cancelReminderBtn: document.getElementById('cancelReminderBtn'),
+    cancelReminderBtnBottom: document.getElementById('cancelReminderBtnBottom'),
     reminderForm: document.getElementById('reminderForm'),
     reminderFormContainer: document.getElementById('reminderFormContainer'),
     isRecurringCheckbox: document.getElementById('isRecurring'),
@@ -33,13 +34,14 @@ const elements = {
     noDaySelected: document.getElementById('noDaySelected'),
     dayContent: document.getElementById('dayContent'),
     selectedDate: document.getElementById('selectedDate'),
+    dayOfWeek: document.getElementById('dayOfWeek'),
     dayReminders: document.getElementById('dayReminders'),
     addReminderToDayBtn: document.getElementById('addReminderToDayBtn'),
     createReminderForTodayBtn: document.getElementById('createReminderForTodayBtn'),
 
     upcomingReminders: document.getElementById('upcomingReminders'),
 
-    appVersion: document.querySelector('.text-xs.text-gray-400.mb-3')
+    appVersion: document.querySelector('#app-version')
 };
 
 const state = {
@@ -56,7 +58,8 @@ const state = {
     currentView: 'month',
     editingReminder: null,
     recurringWeekdays: [],
-    animationDuration: 300
+    animationDuration: 300,
+    notifications: []
 };
 
 async function initApp() {
@@ -128,13 +131,13 @@ function applyGlassmorphismEffect() {
         document.querySelectorAll('.glass').forEach(el => {
             el.style.backdropFilter = 'blur(12px)';
             el.style.webkitBackdropFilter = 'blur(12px)';
-            el.style.background = 'rgba(22, 27, 34, 0.75)';
+            el.style.background = 'rgba(22, 27, 34, 0.8)';
         });
 
         document.querySelectorAll('.glass-nav').forEach(el => {
             el.style.backdropFilter = 'blur(12px)';
             el.style.webkitBackdropFilter = 'blur(12px)';
-            el.style.background = 'rgba(22, 27, 34, 0.92)';
+            el.style.background = 'rgba(22, 27, 34, 0.95)';
         });
     }
 }
@@ -288,8 +291,16 @@ function setupEventListeners() {
         elements.createReminderBtn.addEventListener('click', showReminderForm);
     }
 
+    if (elements.createReminderBtnEmpty) {
+        elements.createReminderBtnEmpty.addEventListener('click', showReminderForm);
+    }
+
     if (elements.cancelReminderBtn) {
         elements.cancelReminderBtn.addEventListener('click', hideReminderForm);
+    }
+
+    if (elements.cancelReminderBtnBottom) {
+        elements.cancelReminderBtnBottom.addEventListener('click', hideReminderForm);
     }
 
     if (elements.reminderForm) {
@@ -309,6 +320,31 @@ function setupEventListeners() {
             setTimeout(() => showReminderForm(today), 300);
         });
     }
+
+    document.querySelectorAll('.weekday-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const checkbox = this.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                if (checkbox.checked) {
+                    this.classList.add('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                } else {
+                    this.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.weekday-item input[type="checkbox"]').forEach(checkbox => {
+        const item = checkbox.closest('.weekday-item');
+        if (item) {
+            if (checkbox.checked) {
+                item.classList.add('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+            } else {
+                item.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+            }
+        }
+    });
 }
 
 async function saveSettings() {
@@ -324,10 +360,13 @@ async function saveSettings() {
 
         console.log("New settings:", updatedSettings);
         state.settings = await window.api.settings.save(updatedSettings);
+
+        showNotification('Settings saved successfully', 'success');
+
         console.log("Settings saved successfully");
     } catch (error) {
         console.error('Error saving settings:', error);
-        alert('Failed to save settings. Please try again.');
+        showNotification('Failed to save settings', 'error');
     }
 }
 
@@ -442,8 +481,13 @@ function formatDateString(date) {
 }
 
 function formatDisplayDate(date) {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return date.toLocaleDateString('en-US', options);
+}
+
+function getDayOfWeek(date) {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
 }
 
 function formatTime(timeString) {
@@ -457,10 +501,8 @@ function formatTime(timeString) {
 function updateDisplayDates() {
     const today = new Date();
     const formattedDate = formatDisplayDate(today);
-    document.querySelectorAll('.text-sm.text-gray-400').forEach(el => {
-        if (el.innerText && el.innerText.includes("Today's Date:")) {
-            el.innerText = `Today's Date: ${formattedDate}`;
-        }
+    document.querySelectorAll('.day-indicator span').forEach(el => {
+        el.textContent = `Today's Date: ${formattedDate}`;
     });
 }
 
@@ -470,6 +512,10 @@ function selectDay(date) {
     elements.dayContent.classList.remove('hidden');
     elements.dayContent.classList.add('animate-fade-in');
     elements.selectedDate.textContent = formatDisplayDate(date);
+    if (elements.dayOfWeek) {
+        elements.dayOfWeek.textContent = getDayOfWeek(date);
+    }
+
     showRemindersForDay(date);
 }
 
@@ -525,13 +571,14 @@ function showRemindersForDay(date) {
 
     if (dayReminders.length === 0) {
         const noReminders = document.createElement('div');
-        noReminders.className = 'text-center py-8 text-gray-400 animate-fade-in';
+        noReminders.className = 'empty-state animate-fade-in';
         noReminders.innerHTML = `
-            <div class="bg-gray-800 bg-opacity-30 p-4 rounded-full inline-block mb-4">
-                <i data-feather="calendar" class="h-10 w-10 text-gray-600"></i>
+            <div class="empty-state-icon">
+                <i data-feather="calendar" class="h-8 w-8 text-gray-500"></i>
             </div>
-            <p class="mb-4">No reminders for this day</p>
-            <button id="quickAddReminder" class="btn px-5 py-2 rounded-lg flex items-center mx-auto">
+            <p class="text-lg font-semibold mb-2">No reminders for this day</p>
+            <p class="text-gray-400 mb-6 text-center">Create a reminder to get started</p>
+            <button id="quickAddReminder" class="btn flex items-center">
                 <i data-feather="plus" class="h-4 w-4 mr-2"></i>
                 Add reminder
             </button>
@@ -550,16 +597,16 @@ function showRemindersForDay(date) {
 
     dayReminders.forEach((reminder, index) => {
         const reminderEl = createReminderElement(reminder, date);
-        setTimeout(() => {
-            elements.dayReminders.appendChild(reminderEl);
-            feather.replace();
-        }, index * 100);
+        reminderEl.style.animationDelay = `${index * 100}ms`;
+        elements.dayReminders.appendChild(reminderEl);
     });
+
+    feather.replace();
 }
 
 function createReminderElement(reminder, displayDate = null) {
     const reminderEl = document.createElement('div');
-    reminderEl.className = 'bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-700 hover:border-blue-500 hover:bg-opacity-70 transition-all duration-200 animate-fade-in shadow-md';
+    reminderEl.className = 'reminder-card animate-slide-up';
     reminderEl.dataset.id = reminder.id;
 
     if (reminder.isRecurring && displayDate) {
@@ -588,7 +635,7 @@ function createReminderElement(reminder, displayDate = null) {
     let reminderContent = `
         <div class="flex justify-between items-start">
             <div class="flex-1">
-                <div class="flex items-center mb-1">
+                <div class="flex items-center mb-2">
                     <span class="type-badge ${typeBadgeClass} mr-2">
                         <i data-feather="${typeIcon}" class="h-3 w-3 mr-1"></i>
                         ${reminder.reminderType.charAt(0).toUpperCase() + reminder.reminderType.slice(1)}
@@ -618,11 +665,11 @@ function createReminderElement(reminder, displayDate = null) {
                 <div class="text-xs text-gray-500 mt-1">${reminder.notificationDuration} sec notification</div>
             </div>
         </div>
-        <div class="flex justify-end mt-3 space-x-2">
-            <button class="edit-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Edit">
+        <div class="flex justify-end mt-4 space-x-2">
+            <button class="edit-reminder p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-200 transition-all duration-200" title="Edit">
                 <i data-feather="edit-2" class="h-4 w-4"></i>
             </button>
-            <button class="delete-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Delete">
+            <button class="delete-reminder p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-200 transition-all duration-200" title="Delete">
                 <i data-feather="trash-2" class="h-4 w-4"></i>
             </button>
         </div>
@@ -683,7 +730,7 @@ function updateUpcomingReminders() {
 
     if (upcoming.length === 0) {
         const noUpcoming = document.createElement('div');
-        noUpcoming.className = 'flex items-center text-sm text-gray-400 py-2 px-3 rounded-lg';
+        noUpcoming.className = 'flex items-center text-sm text-gray-400 py-2 px-3 rounded-lg bg-gray-800 bg-opacity-30';
         noUpcoming.innerHTML = `
             <i data-feather="calendar" class="h-4 w-4 mr-2 text-gray-500"></i>
             No upcoming reminders
@@ -696,8 +743,8 @@ function updateUpcomingReminders() {
 
             const reminderEl = document.createElement('div');
             reminderEl.className = 'text-sm p-3 hover:bg-gray-800 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800 bg-opacity-30 border border-transparent hover:border-gray-700';
-            reminderEl.style.animationDelay = `${index * 100}ms`;
-            reminderEl.classList.add('animate-fade-in');
+            reminderEl.style.opacity = '0';
+            reminderEl.style.animation = `slideUp 0.3s ease forwards ${index * 0.05}s`;
 
             let dateText;
             if (isToday) {
@@ -781,6 +828,9 @@ function showReminderForm(date = null) {
     elements.monthDaySelector.classList.remove('animate-fade-in');
     elements.occurrencesInput.classList.remove('animate-fade-in');
     elements.endDateInput.classList.remove('animate-fade-in');
+    document.querySelectorAll('.weekday-item').forEach(item => {
+        item.classList.remove('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+    });
 
     if (state.editingReminder) {
         elements.reminderForm.title.value = state.editingReminder.title;
@@ -810,6 +860,12 @@ function showReminderForm(date = null) {
                     const checkbox = elements.reminderForm[`weekday_${i}`];
                     if (checkbox) {
                         checkbox.checked = state.editingReminder.weekdays.includes(i);
+                        if (checkbox.checked) {
+                            const item = checkbox.closest('.weekday-item');
+                            if (item) {
+                                item.classList.add('bg-blue-900', 'bg-opacity-20', 'border-blue-500');
+                            }
+                        }
                     }
                 }
             }
@@ -862,6 +918,9 @@ function showReminderForm(date = null) {
     elements.reminderFormContainer.classList.remove('hidden');
     setTimeout(() => {
         elements.reminderFormContainer.classList.add('animate-scale-in');
+        if (elements.reminderForm.title) {
+            elements.reminderForm.title.focus();
+        }
     }, 10);
 }
 
@@ -928,15 +987,16 @@ async function handleReminderSubmit(e) {
             if (state.selectedDate) {
                 showRemindersForDay(state.selectedDate);
             }
+            showNotification(state.editingReminder ? 'Reminder updated successfully' : 'Reminder created successfully', 'success');
         } else {
             console.error("Failed to save reminder");
-            alert("Failed to save reminder. Please try again.");
+            showNotification("Failed to save reminder", 'error');
         }
 
         hideReminderForm();
     } catch (error) {
         console.error('Error saving reminder:', error);
-        alert("An error occurred while saving the reminder. Please try again.");
+        showNotification("An error occurred while saving the reminder", 'error');
     }
 }
 
@@ -949,8 +1009,10 @@ async function deleteReminder(id) {
     try {
         const confirmed = confirm('Are you sure you want to delete this reminder?');
         if (!confirmed) return;
+
         console.log("Deleting reminder:", id);
         const success = await window.api.invoke('delete-reminder', id);
+
         if (success) {
             console.log("Reminder deleted successfully");
             await loadReminders();
@@ -959,14 +1021,41 @@ async function deleteReminder(id) {
             if (state.selectedDate) {
                 showRemindersForDay(state.selectedDate);
             }
+
+            showNotification("Reminder deleted successfully", 'success');
         } else {
             console.error("Failed to delete reminder");
-            alert("Failed to delete reminder. Please try again.");
+            showNotification("Failed to delete reminder", 'error');
         }
     } catch (error) {
         console.error('Error deleting reminder:', error);
-        alert("An error occurred while deleting the reminder. Please try again.");
+        showNotification("An error occurred while deleting the reminder", 'error');
     }
+}
+
+function showNotification(message, type = 'success') {
+    document.querySelectorAll('.notification').forEach(notification => {
+        notification.remove();
+    });
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    let icon = 'check-circle';
+    if (type === 'error') icon = 'alert-circle';
+
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i data-feather="${icon}" class="h-5 w-5 mr-2 ${type === 'success' ? 'text-green-400' : 'text-red-400'}"></i>
+            <span>${message}</span>
+        </div>
+    `;
+
+    document.body.appendChild(notification);
+    feather.replace();
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(10px)';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
 }
 
 if (window.api && window.api.receive) {
@@ -983,7 +1072,7 @@ if (window.api && window.api.receive) {
                     const reminderEl = document.querySelector(`[data-id="${reminderId}"]`);
                     if (reminderEl) {
                         reminderEl.classList.add('bg-blue-900', 'bg-opacity-20');
-                        reminderEl.scrollIntoView({ behavior: 'smooth' });
+                        reminderEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         setTimeout(() => {
                             reminderEl.classList.remove('bg-blue-900', 'bg-opacity-20');
                         }, 3000);

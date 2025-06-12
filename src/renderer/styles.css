@@ -1,0 +1,636 @@
+:root {
+    --github-bg: #0d1117;
+    --github-secondary: #161b22;
+    --github-border: #30363d;
+    --github-text: #c9d1d9;
+    --github-link: #58a6ff;
+    --github-btn: #238636;
+    --github-btn-hover: #2ea043;
+    --github-btn-active: #26a641;
+    --github-danger: #f85149;
+    --github-danger-hover: #da3633;
+    --github-meeting: #3fb950;
+    --github-deadline: #f85149;
+    --github-personal: #ff7b72;
+    --github-other: #8b949e;
+    --github-muted: #8b949e;
+    --github-focus-border: #1f6feb;
+    --github-success: #3fb950;
+}
+
+body {
+    background-color: var(--github-bg);
+    color: var(--github-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.content-scrollable {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--github-border) var(--github-bg);
+}
+
+.form-container {
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.glass {
+    background: rgba(22, 27, 34, 0.8);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(48, 54, 61, 0.6);
+    border-radius: 10px;
+}
+
+.glass-nav {
+    background: rgba(22, 27, 34, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(48, 54, 61, 0.6);
+}
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.day {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+
+.day.has-reminder::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background-color: var(--github-link);
+    border-radius: 50%;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.day.has-recurring::after {
+    background-color: #9e6efe;
+}
+
+.day.today {
+    background-color: rgba(88, 166, 255, 0.2);
+    font-weight: bold;
+    border: 1px solid var(--github-link);
+}
+
+.day.selected {
+    background-color: rgba(88, 166, 255, 0.4);
+    font-weight: bold;
+    border: 1px solid var(--github-link);
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+.day.outside-month {
+    opacity: 0.4;
+}
+
+.day.weekend {
+    color: #ff7b72;
+}
+
+.day:hover {
+    background-color: rgba(88, 166, 255, 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.day:active {
+    transform: translateY(0);
+    background-color: rgba(88, 166, 255, 0.2);
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(13, 17, 23, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(48, 54, 61, 0.8);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(88, 166, 255, 0.5);
+}
+
+input, textarea, select {
+    background-color: var(--github-secondary);
+    border: 1px solid var(--github-border);
+    color: var(--github-text);
+    border-radius: 6px;
+    padding: 8px 12px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+    border-color: var(--github-focus-border);
+    box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.15);
+}
+
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+    vertical-align: middle;
+    accent-color: var(--github-link);
+}
+
+.btn {
+    background-color: var(--github-btn);
+    color: white;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+}
+
+.btn:hover {
+    background-color: var(--github-btn-hover);
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    background-color: var(--github-btn-active);
+    transform: translateY(0);
+}
+
+.btn-secondary {
+    background-color: rgba(48, 54, 61, 0.6);
+    color: var(--github-text);
+}
+
+.btn-secondary:hover {
+    background-color: rgba(48, 54, 61, 0.8);
+}
+
+.btn-danger {
+    background-color: var(--github-danger);
+}
+
+.btn-danger:hover {
+    background-color: var(--github-danger-hover);
+}
+
+.settings-panel {
+    position: absolute;
+    top: 0;
+    right: -350px;
+    width: 350px;
+    height: 100%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    overflow-y: auto;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.settings-panel.visible {
+    right: 0;
+}
+
+.recurring-badge {
+    background-color: #9e6efe;
+    color: white;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.type-badge {
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.type-meeting {
+    background-color: rgba(63, 185, 80, 0.2);
+    color: var(--github-meeting);
+}
+
+.type-deadline {
+    background-color: rgba(248, 81, 73, 0.2);
+    color: var(--github-deadline);
+}
+
+.type-personal {
+    background-color: rgba(255, 123, 114, 0.2);
+    color: var(--github-personal);
+}
+
+.type-other {
+    background-color: rgba(139, 148, 158, 0.2);
+    color: var(--github-other);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #374151;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--github-link);
+}
+
+input:focus + .toggle-slider {
+    box-shadow: 0 0 1px var(--github-link);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.animate-scale-in {
+    animation: scaleIn 0.3s ease forwards;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease forwards;
+}
+
+.animate-pulse {
+    animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Staggered animations */
+.stagger > * {
+    opacity: 0;
+}
+
+.stagger > *:nth-child(1) { animation: slideUp 0.3s ease forwards 0.0s; }
+.stagger > *:nth-child(2) { animation: slideUp 0.3s ease forwards 0.1s; }
+.stagger > *:nth-child(3) { animation: slideUp 0.3s ease forwards 0.15s; }
+.stagger > *:nth-child(4) { animation: slideUp 0.3s ease forwards 0.2s; }
+.stagger > *:nth-child(5) { animation: slideUp 0.3s ease forwards 0.25s; }
+.stagger > *:nth-child(6) { animation: slideUp 0.3s ease forwards 0.3s; }
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 50;
+    display: none;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    transition: opacity 0.3s ease;
+    opacity: 0;
+}
+
+.overlay.visible {
+    display: block;
+    opacity: 1;
+}
+
+.weekday-selector {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.weekday-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: rgba(22, 27, 34, 0.6);
+    border: 1px solid var(--github-border);
+    border-radius: 6px;
+    padding: 6px 0;
+    transition: all 0.2s ease;
+}
+
+.weekday-item:hover {
+    background-color: rgba(56, 139, 253, 0.1);
+    border-color: var(--github-link);
+}
+
+.weekday-item input:checked + span {
+    font-weight: bold;
+    color: var(--github-link);
+}
+
+.recurring-section {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.main-container {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 300px;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    margin: 16px;
+    margin-right: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.main-content {
+    flex: 1;
+    margin: 16px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.form-card {
+    margin-bottom: 16px;
+    overflow: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.day-card {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.day-reminders {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.form-full {
+    grid-column: 1 / -1;
+}
+
+.interactive-hover:hover {
+    background-color: rgba(88, 166, 255, 0.1);
+}
+
+.interactive-active:active {
+    background-color: rgba(88, 166, 255, 0.2);
+}
+
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: var(--github-secondary);
+    color: var(--github-text);
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+    border: 1px solid var(--github-border);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+.reminder-card {
+    background: rgba(22, 27, 34, 0.6);
+    border: 1px solid rgba(48, 54, 61, 0.6);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.reminder-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(88, 166, 255, 0.6);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    color: var(--github-muted);
+}
+
+.empty-state-icon {
+    background-color: rgba(48, 54, 61, 0.3);
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.app-header {
+    height: 60px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.app-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--github-link);
+    font-weight: bold;
+    font-size: 18px;
+}
+
+@media (max-width: 768px) {
+    .main-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        min-width: 100%;
+        margin-right: 16px;
+        margin-bottom: 16px;
+        max-height: 40vh;
+    }
+}
+
+button:focus, input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--github-focus-border);
+    outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible) {
+    outline: none;
+}
+
+button:focus-visible {
+    outline: 2px solid var(--github-focus-border);
+    outline-offset: 2px;
+}
+
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--github-secondary);
+    border: 1px solid var(--github-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    max-width: 300px;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: slideUpNotification 0.3s forwards;
+}
+
+@keyframes slideUpNotification {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.notification-success {
+    border-left: 4px solid var(--github-success);
+}
+
+.notification-error {
+    border-left: 4px solid var(--github-danger);
+}
+
+.day-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    background-color: rgba(88, 166, 255, 0.1);
+    margin-top: 8px;
+    border: 1px solid rgba(88, 166, 255, 0.3);
+}

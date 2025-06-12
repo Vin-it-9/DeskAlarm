@@ -2,7 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld(
     'api', {
-
         windowControl: {
             minimize: () => ipcRenderer.send('window-minimize'),
             maximize: () => ipcRenderer.send('window-maximize'),
@@ -10,7 +9,6 @@ contextBridge.exposeInMainWorld(
         },
 
         invoke: async (channel, ...data) => {
-
             const validChannels = [
                 'get-reminders',
                 'save-reminder',
@@ -33,7 +31,8 @@ contextBridge.exposeInMainWorld(
         receive: (channel, callback) => {
             const validChannels = [
                 'show-reminder',
-                'show-reminder-fallback'
+                'show-reminder-fallback',
+                'update-status'
             ];
 
             if (validChannels.includes(channel)) {
@@ -79,6 +78,15 @@ contextBridge.exposeInMainWorld(
                     return false;
                 }
             }
+        },
+
+        removeFromStartup: async () => {
+            try {
+                return await ipcRenderer.invoke('remove-from-startup');
+            } catch (error) {
+                console.error('Error removing from startup:', error);
+                return false;
+            }
         }
     }
 );
@@ -87,6 +95,9 @@ contextBridge.exposeInMainWorld(
     'utils', {
         formatDate: (date) => {
             try {
+                if (!date || !(date instanceof Date)) {
+                    return '';
+                }
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
@@ -99,6 +110,9 @@ contextBridge.exposeInMainWorld(
 
         formatTime: (date) => {
             try {
+                if (!date || !(date instanceof Date)) {
+                    return '00:00';
+                }
                 const hours = String(date.getHours()).padStart(2, '0');
                 const minutes = String(date.getMinutes()).padStart(2, '0');
                 return `${hours}:${minutes}`;
@@ -119,7 +133,7 @@ contextBridge.exposeInMainWorld(
                 return `${hour12}:${minutes} ${ampm}`;
             } catch (error) {
                 console.error('Error formatting display time:', error);
-                return timeString;
+                return timeString || '';
             }
         },
 
@@ -138,6 +152,9 @@ contextBridge.exposeInMainWorld(
 
         getDayOfWeek: (date) => {
             try {
+                if (!date || !(date instanceof Date)) {
+                    return '';
+                }
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 return days[date.getDay()];
             } catch (error) {
@@ -146,8 +163,24 @@ contextBridge.exposeInMainWorld(
             }
         },
 
+        getShortDayOfWeek: (date) => {
+            try {
+                if (!date || !(date instanceof Date)) {
+                    return '';
+                }
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return days[date.getDay()];
+            } catch (error) {
+                console.error('Error getting short day of week:', error);
+                return '';
+            }
+        },
+
         getMonthName: (date) => {
             try {
+                if (!date || !(date instanceof Date)) {
+                    return '';
+                }
                 const months = ['January', 'February', 'March', 'April', 'May', 'June',
                     'July', 'August', 'September', 'October', 'November', 'December'];
                 return months[date.getMonth()];
@@ -157,8 +190,25 @@ contextBridge.exposeInMainWorld(
             }
         },
 
+        getShortMonthName: (date) => {
+            try {
+                if (!date || !(date instanceof Date)) {
+                    return '';
+                }
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return months[date.getMonth()];
+            } catch (error) {
+                console.error('Error getting short month name:', error);
+                return '';
+            }
+        },
+
         isSameDay: (date1, date2) => {
             try {
+                if (!date1 || !date2 || !(date1 instanceof Date) || !(date2 instanceof Date)) {
+                    return false;
+                }
                 return date1.getFullYear() === date2.getFullYear() &&
                     date1.getMonth() === date2.getMonth() &&
                     date1.getDate() === date2.getDate();
@@ -174,6 +224,26 @@ contextBridge.exposeInMainWorld(
             } catch (error) {
                 console.error('Error getting days in month:', error);
                 return 30;
+            }
+        },
+
+        parseDate: (dateString) => {
+            try {
+                if (!dateString) return null;
+                const parts = dateString.includes('-')
+                    ? dateString.split('-').map(p => parseInt(p, 10))
+                    : dateString.split('/').map(p => parseInt(p, 10));
+
+                if (parts.length !== 3) return null;
+
+                if (dateString.includes('-')) {
+                    return new Date(parts[0], parts[1] - 1, parts[2]);
+                } else {
+                    return new Date(parts[2], parts[0] - 1, parts[1]);
+                }
+            } catch (error) {
+                console.error('Error parsing date:', error);
+                return null;
             }
         },
 
@@ -202,7 +272,11 @@ contextBridge.exposeInMainWorld(
                     case 'monthly':
                         if (reminder.monthDay) {
                             const day = parseInt(reminder.monthDay);
-                            const suffix = ['st', 'nd', 'rd'][((day + 90) % 100 - 10) % 10 - 1] || 'th';
+                            let suffix;
+                            if (day === 1 || day === 21 || day === 31) suffix = 'st';
+                            else if (day === 2 || day === 22) suffix = 'nd';
+                            else if (day === 3 || day === 23) suffix = 'rd';
+                            else suffix = 'th';
                             return `Monthly on ${day}${suffix}`;
                         }
                         return 'Monthly';
@@ -227,16 +301,16 @@ contextBridge.exposeInMainWorld(
         getReminderTypeDetails: (type) => {
             try {
                 const types = {
-                    meeting: { icon: 'users', class: 'type-meeting', label: 'Meeting' },
-                    deadline: { icon: 'alert-triangle', class: 'type-deadline', label: 'Deadline' },
-                    personal: { icon: 'heart', class: 'type-personal', label: 'Personal' },
-                    other: { icon: 'bell', class: 'type-other', label: 'Other' }
+                    meeting: { icon: 'users', class: 'type-meeting', label: 'Meeting', color: 'var(--github-meeting)' },
+                    deadline: { icon: 'alert-triangle', class: 'type-deadline', label: 'Deadline', color: 'var(--github-deadline)' },
+                    personal: { icon: 'heart', class: 'type-personal', label: 'Personal', color: 'var(--github-personal)' },
+                    other: { icon: 'bell', class: 'type-other', label: 'Other', color: 'var(--github-other)' }
                 };
 
                 return types[type] || types.other;
             } catch (error) {
                 console.error('Error getting reminder type details:', error);
-                return { icon: 'bell', class: 'type-other', label: 'Other' };
+                return { icon: 'bell', class: 'type-other', label: 'Other', color: 'var(--github-other)' };
             }
         },
 
@@ -247,14 +321,14 @@ contextBridge.exposeInMainWorld(
                 if (Notification.permission === "granted") {
                     new Notification(title, {
                         body: body,
-                        icon: './assets/logo.png'
+                        icon: '../assets/logo.png'
                     });
                 } else if (Notification.permission !== "denied") {
                     Notification.requestPermission().then(permission => {
                         if (permission === "granted") {
                             new Notification(title, {
                                 body: body,
-                                icon: './assets/logo.png'
+                                icon: '../assets/logo.png'
                             });
                         }
                     });
@@ -270,10 +344,58 @@ contextBridge.exposeInMainWorld(
                     date = new Date(date);
                 }
 
-                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                if (!date || isNaN(date.getTime())) {
+                    return '';
+                }
+
+                const options = { year: 'numeric', month: 'long', day: 'numeric' };
                 return date.toLocaleDateString('en-US', options);
             } catch (error) {
                 console.error('Error formatting display date:', error);
+                return '';
+            }
+        },
+
+        formatRelativeDate: (date) => {
+            try {
+                if (typeof date === 'string') {
+                    date = new Date(date);
+                }
+
+                if (!date || isNaN(date.getTime())) {
+                    return '';
+                }
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+
+                const dateToCheck = new Date(date);
+                dateToCheck.setHours(0, 0, 0, 0);
+
+                if (dateToCheck.getTime() === today.getTime()) {
+                    return 'Today';
+                } else if (dateToCheck.getTime() === tomorrow.getTime()) {
+                    return 'Tomorrow';
+                } else if (dateToCheck.getTime() === yesterday.getTime()) {
+                    return 'Yesterday';
+                }
+                const daysUntil = Math.round((dateToCheck - today) / (1000 * 60 * 60 * 24));
+                if (daysUntil > 0 && daysUntil < 7) {
+                    return date.toLocaleDateString('en-US', { weekday: 'long' });
+                }
+                return date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: today.getFullYear() !== date.getFullYear() ? 'numeric' : undefined
+                });
+            } catch (error) {
+                console.error('Error formatting relative date:', error);
                 return '';
             }
         },
@@ -282,6 +404,10 @@ contextBridge.exposeInMainWorld(
             try {
                 if (typeof date === 'string') {
                     date = new Date(date);
+                }
+
+                if (!date || isNaN(date.getTime())) {
+                    return false;
                 }
 
                 const today = new Date();
@@ -300,6 +426,10 @@ contextBridge.exposeInMainWorld(
                     date = new Date(date);
                 }
 
+                if (!date || isNaN(date.getTime())) {
+                    return false;
+                }
+
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -310,6 +440,54 @@ contextBridge.exposeInMainWorld(
                 console.error('Error checking if date is tomorrow:', error);
                 return false;
             }
+        },
+
+        isValidDate: (date) => {
+            if (!date) return false;
+            if (date instanceof Date) return !isNaN(date.getTime());
+
+            try {
+                const d = new Date(date);
+                return !isNaN(d.getTime());
+            } catch (e) {
+                return false;
+            }
+        },
+
+        getTimeAgo: (date) => {
+            try {
+                if (!date) return '';
+
+                const now = new Date();
+                const past = typeof date === 'string' ? new Date(date) : date;
+                const diffMs = now - past;
+
+                if (diffMs < 0) return 'in the future';
+
+                const diffSecs = Math.floor(diffMs / 1000);
+                if (diffSecs < 60) return `${diffSecs} second${diffSecs !== 1 ? 's' : ''} ago`;
+
+                const diffMins = Math.floor(diffSecs / 60);
+                if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+
+                const diffHours = Math.floor(diffMins / 60);
+                if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+
+                const diffDays = Math.floor(diffHours / 24);
+                if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+
+                const diffWeeks = Math.floor(diffDays / 7);
+                if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`;
+
+                const diffMonths = Math.floor(diffDays / 30);
+                if (diffMonths < 12) return `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`;
+
+                const diffYears = Math.floor(diffDays / 365);
+                return `${diffYears} year${diffYears !== 1 ? 's' : ''} ago`;
+            } catch (error) {
+                console.error('Error calculating time ago:', error);
+                return '';
+            }
         }
     }
 );
@@ -317,13 +495,18 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld('appInfo', {
     version: process.env.npm_package_version || '1.0.0',
     platform: process.platform,
+    isWindows: process.platform === 'win32',
+    isMac: process.platform === 'darwin',
+    isLinux: process.platform === 'linux',
+    isDevelopment: process.env.NODE_ENV === 'development' || !require('electron').app.isPackaged,
     currentDate: new Date().toISOString().split('T')[0],
-    currentTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+    currentTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
+    timestamp: Date.now()
 });
 
 const animationHelper = {
     addAnimation: (element, animationClass, duration = 300) => {
-        if (!element) return;
+        if (!element) return Promise.resolve();
 
         element.classList.add(animationClass);
         return new Promise(resolve => {
@@ -335,26 +518,27 @@ const animationHelper = {
     },
 
     fadeIn: (element, duration = 300) => {
-        if (!element) return;
+        if (!element) return Promise.resolve();
 
         element.style.opacity = '0';
         element.classList.remove('hidden');
 
-        setTimeout(() => {
-            element.style.transition = `opacity ${duration}ms ease`;
-            element.style.opacity = '1';
-        }, 10);
-
         return new Promise(resolve => {
-            setTimeout(() => {
-                element.style.transition = '';
-                resolve();
-            }, duration + 10);
+            requestAnimationFrame(() => {
+                element.style.transition = `opacity ${duration}ms ease`;
+                element.style.opacity = '1';
+
+                setTimeout(() => {
+                    element.style.transition = '';
+                    resolve();
+                }, duration);
+            });
         });
     },
 
     fadeOut: (element, duration = 300) => {
-        if (!element) return;
+        if (!element) return Promise.resolve();
+        if (getComputedStyle(element).display === 'none') return Promise.resolve();
 
         element.style.transition = `opacity ${duration}ms ease`;
         element.style.opacity = '0';
@@ -366,33 +550,153 @@ const animationHelper = {
                 resolve();
             }, duration);
         });
+    },
+
+    slideUp: (element, duration = 300) => {
+        if (!element) return Promise.resolve();
+
+        const height = element.offsetHeight;
+        element.style.height = `${height}px`;
+        element.style.overflow = 'hidden';
+
+        return new Promise(resolve => {
+            requestAnimationFrame(() => {
+                element.style.transition = `height ${duration}ms ease`;
+                element.style.height = '0px';
+
+                setTimeout(() => {
+                    element.style.display = 'none';
+                    element.style.height = '';
+                    element.style.overflow = '';
+                    element.style.transition = '';
+                    resolve();
+                }, duration);
+            });
+        });
+    },
+
+    slideDown: (element, duration = 300) => {
+        if (!element) return Promise.resolve();
+        const originalDisplay = window.getComputedStyle(element).display === 'none' ? 'block' : window.getComputedStyle(element).display;
+        element.style.display = originalDisplay;
+        element.style.overflow = 'hidden';
+        element.style.height = '0px';
+        const height = element.scrollHeight;
+
+        return new Promise(resolve => {
+            requestAnimationFrame(() => {
+                element.style.transition = `height ${duration}ms ease`;
+                element.style.height = `${height}px`;
+
+                setTimeout(() => {
+                    element.style.height = '';
+                    element.style.overflow = '';
+                    element.style.transition = '';
+                    resolve();
+                }, duration);
+            });
+        });
+    },
+
+    shake: (element, duration = 500) => {
+        if (!element) return Promise.resolve();
+
+        return animationHelper.addAnimation(element, 'animate-shake', duration);
+    },
+
+    pulse: (element, duration = 1000) => {
+        if (!element) return Promise.resolve();
+
+        return animationHelper.addAnimation(element, 'animate-pulse', duration);
+    },
+
+    highlight: (element, duration = 1500) => {
+        if (!element) return Promise.resolve();
+
+        element.style.transition = `background-color ${duration}ms ease`;
+        element.style.backgroundColor = 'rgba(88, 166, 255, 0.2)';
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                element.style.backgroundColor = '';
+                setTimeout(() => {
+                    element.style.transition = '';
+                    resolve();
+                }, 100);
+            }, duration);
+        });
     }
 };
 
 contextBridge.exposeInMainWorld('animations', animationHelper);
+contextBridge.exposeInMainWorld('domUtils', {
+    selectElementContents: (element) => {
+        if (!element) return;
+
+        const range = document.createRange();
+        range.selectNodeContents(element);
+
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    },
+
+    copyToClipboard: async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return success;
+        }
+    },
+
+    focusElement: (selector, delay = 0) => {
+        setTimeout(() => {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.focus();
+                if (element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea') {
+                    element.select();
+                }
+            }
+        }, delay);
+    },
+
+    scrollIntoView: (selector, options = { behavior: 'smooth', block: 'start' }) => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.scrollIntoView(options);
+        }
+    }
+});
 
 window.addEventListener('DOMContentLoaded', () => {
     try {
-        const versionElement = document.querySelector('.text-xs.text-gray-400.mb-3');
+        const versionElement = document.getElementById('app-version');
         if (versionElement) {
             versionElement.textContent = `GitRemind v${process.env.npm_package_version || '1.0.0'}`;
         }
 
-        const todayDateElements = document.querySelectorAll('.text-sm.text-gray-400');
+        const todayDateElements = document.querySelectorAll('.day-indicator span');
         if (todayDateElements.length > 0) {
+            const today = new Date();
+            const formattedDate = today.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
             todayDateElements.forEach(el => {
-                if (el.innerText && el.innerText.includes("Today's Date:")) {
-                    const today = new Date();
-                    const formattedDate = today.toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                    });
-                    el.innerText = `Today's Date: ${formattedDate}`;
-                }
+                el.textContent = `Today's Date: ${formattedDate}`;
             });
         }
-
         const dateInputs = document.querySelectorAll('input[type="date"]');
         if (dateInputs.length > 0) {
             const today = new Date();
@@ -404,11 +708,11 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+        if (typeof window.feather !== 'undefined') {
+            window.feather.replace();
+        }
     } catch (error) {
         console.error('Error in DOMContentLoaded handler:', error);
-    }
-    if (typeof window.feather !== 'undefined') {
-        window.feather.replace();
     }
 });
 
@@ -422,3 +726,19 @@ ipcRenderer.on('animate-ui-element', (event, elementId, animationType) => {
         console.error('Error animating UI element:', error);
     }
 });
+
+if (typeof document !== 'undefined') {
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = `
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        
+        .animate-shake {
+            animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+    `;
+    document.head.appendChild(styleSheet);
+}
