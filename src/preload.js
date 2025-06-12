@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld(
         },
 
         invoke: async (channel, ...data) => {
-         
+
             const validChannels = [
                 'get-reminders',
                 'save-reminder',
@@ -108,6 +108,21 @@ contextBridge.exposeInMainWorld(
             }
         },
 
+        formatDisplayTime: (timeString) => {
+            try {
+                if (!timeString) return '';
+
+                const [hours, minutes] = timeString.split(':');
+                const hour = parseInt(hours, 10);
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const hour12 = hour % 12 || 12;
+                return `${hour12}:${minutes} ${ampm}`;
+            } catch (error) {
+                console.error('Error formatting display time:', error);
+                return timeString;
+            }
+        },
+
         getCurrentDateTime: () => {
             try {
                 const now = new Date();
@@ -164,7 +179,7 @@ contextBridge.exposeInMainWorld(
 
         formatRecurrencePattern: (reminder) => {
             try {
-                if (!reminder.isRecurring) return 'One-time';
+                if (!reminder || !reminder.isRecurring) return 'One-time';
 
                 switch (reminder.recurrencePattern) {
                     case 'daily':
@@ -188,7 +203,7 @@ contextBridge.exposeInMainWorld(
                         if (reminder.monthDay) {
                             const day = parseInt(reminder.monthDay);
                             const suffix = ['st', 'nd', 'rd'][((day + 90) % 100 - 10) % 10 - 1] || 'th';
-                            return `Monthly on the ${day}${suffix}`;
+                            return `Monthly on ${day}${suffix}`;
                         }
                         return 'Monthly';
 
@@ -206,6 +221,22 @@ contextBridge.exposeInMainWorld(
             } catch (error) {
                 console.error('Error formatting recurrence pattern:', error);
                 return 'Recurring';
+            }
+        },
+
+        getReminderTypeDetails: (type) => {
+            try {
+                const types = {
+                    meeting: { icon: 'users', class: 'type-meeting', label: 'Meeting' },
+                    deadline: { icon: 'alert-triangle', class: 'type-deadline', label: 'Deadline' },
+                    personal: { icon: 'heart', class: 'type-personal', label: 'Personal' },
+                    other: { icon: 'bell', class: 'type-other', label: 'Other' }
+                };
+
+                return types[type] || types.other;
+            } catch (error) {
+                console.error('Error getting reminder type details:', error);
+                return { icon: 'bell', class: 'type-other', label: 'Other' };
             }
         },
 
@@ -231,26 +262,163 @@ contextBridge.exposeInMainWorld(
             } catch (error) {
                 console.error('Error showing fallback notification:', error);
             }
+        },
+
+        formatDisplayDate: (date) => {
+            try {
+                if (typeof date === 'string') {
+                    date = new Date(date);
+                }
+
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                return date.toLocaleDateString('en-US', options);
+            } catch (error) {
+                console.error('Error formatting display date:', error);
+                return '';
+            }
+        },
+
+        isToday: (date) => {
+            try {
+                if (typeof date === 'string') {
+                    date = new Date(date);
+                }
+
+                const today = new Date();
+                return date.getDate() === today.getDate() &&
+                    date.getMonth() === today.getMonth() &&
+                    date.getFullYear() === today.getFullYear();
+            } catch (error) {
+                console.error('Error checking if date is today:', error);
+                return false;
+            }
+        },
+
+        isTomorrow: (date) => {
+            try {
+                if (typeof date === 'string') {
+                    date = new Date(date);
+                }
+
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                return date.getDate() === tomorrow.getDate() &&
+                    date.getMonth() === tomorrow.getMonth() &&
+                    date.getFullYear() === tomorrow.getFullYear();
+            } catch (error) {
+                console.error('Error checking if date is tomorrow:', error);
+                return false;
+            }
         }
     }
 );
 
 contextBridge.exposeInMainWorld('appInfo', {
-    version: process.env.npm_package_version || '1',
-    platform: process.platform
+    version: process.env.npm_package_version || '1.0.0',
+    platform: process.platform,
+    currentDate: new Date().toISOString().split('T')[0],
+    currentTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
 });
+
+const animationHelper = {
+    addAnimation: (element, animationClass, duration = 300) => {
+        if (!element) return;
+
+        element.classList.add(animationClass);
+        return new Promise(resolve => {
+            setTimeout(() => {
+                element.classList.remove(animationClass);
+                resolve();
+            }, duration);
+        });
+    },
+
+    fadeIn: (element, duration = 300) => {
+        if (!element) return;
+
+        element.style.opacity = '0';
+        element.classList.remove('hidden');
+
+        setTimeout(() => {
+            element.style.transition = `opacity ${duration}ms ease`;
+            element.style.opacity = '1';
+        }, 10);
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                element.style.transition = '';
+                resolve();
+            }, duration + 10);
+        });
+    },
+
+    fadeOut: (element, duration = 300) => {
+        if (!element) return;
+
+        element.style.transition = `opacity ${duration}ms ease`;
+        element.style.opacity = '0';
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                element.classList.add('hidden');
+                element.style.transition = '';
+                resolve();
+            }, duration);
+        });
+    }
+};
+
+contextBridge.exposeInMainWorld('animations', animationHelper);
 
 window.addEventListener('DOMContentLoaded', () => {
     try {
-        const versionElement = document.getElementById('app-version');
+        const versionElement = document.querySelector('.text-xs.text-gray-400.mb-3');
         if (versionElement) {
-            versionElement.textContent = `GitRemind v${process.env.npm_package_version || '1'}`;
+            versionElement.textContent = `GitRemind v${process.env.npm_package_version || '1.0.0'}`;
+        }
+
+        const todayDateElements = document.querySelectorAll('.text-sm.text-gray-400');
+        if (todayDateElements.length > 0) {
+            todayDateElements.forEach(el => {
+                if (el.innerText && el.innerText.includes("Today's Date:")) {
+                    const today = new Date();
+                    const formattedDate = today.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    el.innerText = `Today's Date: ${formattedDate}`;
+                }
+            });
+        }
+
+        const dateInputs = document.querySelectorAll('input[type="date"]');
+        if (dateInputs.length > 0) {
+            const today = new Date();
+            const formattedDate = today.toISOString().split('T')[0];
+
+            dateInputs.forEach(input => {
+                if (!input.value) {
+                    input.value = formattedDate;
+                }
+            });
         }
     } catch (error) {
-        console.error('Error setting app version:', error);
+        console.error('Error in DOMContentLoaded handler:', error);
     }
-
-    if (window.feather) {
+    if (typeof window.feather !== 'undefined') {
         window.feather.replace();
+    }
+});
+
+ipcRenderer.on('animate-ui-element', (event, elementId, animationType) => {
+    try {
+        const element = document.getElementById(elementId);
+        if (element && animationHelper[animationType]) {
+            animationHelper[animationType](element);
+        }
+    } catch (error) {
+        console.error('Error animating UI element:', error);
     }
 });

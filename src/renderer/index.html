@@ -23,7 +23,23 @@
             background-color: var(--github-bg);
             color: var(--github-text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            height: 100vh;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Scrollable containers */
+        .content-scrollable {
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--github-border) var(--github-bg);
+        }
+
+        /* Form container scrolling */
+        .form-container {
+            max-height: calc(100vh - 160px);
+            overflow-y: auto;
         }
 
         /* Glassmorphism Card Effects */
@@ -119,6 +135,16 @@
             box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
         }
 
+        /* Make all checkboxes more visible */
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
         .btn {
             background-color: var(--github-btn);
             color: white;
@@ -144,11 +170,12 @@
         .settings-panel {
             position: absolute;
             top: 0;
-            right: -300px;
-            width: 300px;
+            right: -350px;
+            width: 350px;
             height: 100%;
             transition: right 0.3s ease;
             z-index: 1000;
+            overflow-y: auto;
         }
 
         .settings-panel.visible {
@@ -242,9 +269,121 @@
         .overlay.visible {
             display: block;
         }
+
+        /* Weekday selector improvements */
+        .weekday-selector {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .weekday-item {
+            text-align: center;
+        }
+
+        /* Fix for overflow in recurring options */
+        .recurring-section {
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* Main layout improvements */
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            display: flex;
+            flex-direction: column;
+            margin: 16px;
+            margin-right: 0;
+        }
+
+        .main-content {
+            flex: 1;
+            margin: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Form card */
+        .form-card {
+            margin-bottom: 16px;
+            overflow: visible;
+            position: relative;
+        }
+
+        /* Selected day card */
+        .day-card {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .day-reminders {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* Better form controls */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-full {
+            grid-column: 1 / -1;
+        }
+
+        /* Better feedback for active elements */
+        .interactive-hover:hover {
+            background-color: rgba(88, 166, 255, 0.1);
+        }
+
+        .interactive-active:active {
+            background-color: rgba(88, 166, 255, 0.2);
+        }
+
+        /* Tooltip for better UX */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: var(--github-secondary);
+            color: var(--github-text);
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+            border: 1px solid var(--github-border);
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body>
 <!-- Simple header with logo and settings button -->
 <header class="glass-nav py-3 px-4 flex items-center justify-between z-10">
     <div class="flex items-center space-x-2">
@@ -252,30 +391,33 @@
         <h1 class="text-xl font-bold">GitRemind</h1>
     </div>
     <div>
-        <button id="settingsBtn" class="p-2 hover:bg-gray-700 rounded">
+        <button id="settingsBtn" class="p-2 hover:bg-gray-700 rounded tooltip">
             <i data-feather="settings" class="h-5 w-5"></i>
+            <span class="tooltiptext">Settings</span>
         </button>
     </div>
 </header>
 
 <!-- Main Content -->
-<div class="flex flex-1 overflow-hidden">
+<div class="main-container">
     <!-- Sidebar -->
-    <div class="glass w-64 m-4 p-5 flex flex-col">
-        <div class="mb-6">
+    <div class="sidebar glass p-5 flex flex-col">
+        <div class="mb-4">
             <h2 class="text-lg font-semibold mb-2">Month</h2>
             <div class="flex items-center justify-between">
-                <button id="prevMonth" class="p-1 hover:bg-gray-700 rounded">
+                <button id="prevMonth" class="p-1 hover:bg-gray-700 rounded tooltip">
                     <i data-feather="chevron-left" class="h-5 w-5"></i>
+                    <span class="tooltiptext">Previous Month</span>
                 </button>
                 <span id="currentMonth" class="font-medium">June 2025</span>
-                <button id="nextMonth" class="p-1 hover:bg-gray-700 rounded">
+                <button id="nextMonth" class="p-1 hover:bg-gray-700 rounded tooltip">
                     <i data-feather="chevron-right" class="h-5 w-5"></i>
+                    <span class="tooltiptext">Next Month</span>
                 </button>
             </div>
         </div>
 
-        <div class="mb-6">
+        <div class="mb-4">
             <div class="calendar mb-1">
                 <div class="text-xs font-medium text-center text-gray-400">Sun</div>
                 <div class="text-xs font-medium text-center text-gray-400">Mon</div>
@@ -291,9 +433,9 @@
             </div>
         </div>
 
-        <div class="mb-6">
+        <div class="flex-1 min-h-0 mb-4">
             <h2 class="text-lg font-semibold mb-2">Upcoming Reminders</h2>
-            <div id="upcomingReminders" class="space-y-3 overflow-auto max-h-64">
+            <div id="upcomingReminders" class="space-y-2 content-scrollable h-full max-h-64 pr-1">
                 <!-- Upcoming reminders will be populated by JavaScript -->
                 <div class="flex items-center text-sm text-gray-400">
                     <i data-feather="calendar" class="h-4 w-4 mr-2 text-gray-500"></i>
@@ -302,8 +444,8 @@
             </div>
         </div>
 
-        <div class="mt-auto pt-3 border-t border-gray-700">
-            <button id="createReminderBtn" class="btn w-full flex items-center justify-center">
+        <div class="mt-2 pt-3 border-t border-gray-700">
+            <button id="createReminderBtn" class="btn w-full flex items-center justify-center interactive-hover interactive-active">
                 <i data-feather="plus" class="h-4 w-4 mr-2"></i>
                 New Reminder
             </button>
@@ -311,156 +453,160 @@
     </div>
 
     <!-- Main Content Area -->
-    <div class="flex-1 p-4 overflow-auto">
-        <div id="reminderFormContainer" class="glass p-6 mb-6 hidden">
-            <h2 class="text-xl font-bold mb-4">Create New Reminder</h2>
-            <form id="reminderForm" class="space-y-4">
-                <div>
-                    <label class="block mb-1 font-medium" for="title">Title</label>
-                    <input type="text" id="title" name="title" class="w-full" placeholder="Meeting with team" required>
-                </div>
-
-                <div>
-                    <label class="block mb-1 font-medium" for="description">Description</label>
-                    <textarea id="description" name="description" class="w-full h-24" placeholder="Discuss project status and next steps"></textarea>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block mb-1 font-medium" for="date">Date</label>
-                        <input type="date" id="date" name="date" class="w-full" required>
-                    </div>
-                    <div>
-                        <label class="block mb-1 font-medium" for="time">Time</label>
-                        <input type="time" id="time" name="time" class="w-full" required>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block mb-1 font-medium" for="reminderType">Type</label>
-                        <select id="reminderType" name="reminderType" class="w-full">
-                            <option value="meeting">Meeting</option>
-                            <option value="deadline">Deadline</option>
-                            <option value="personal">Personal</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block mb-1 font-medium" for="notificationDuration">Notification Duration</label>
-                        <select id="notificationDuration" name="notificationDuration" class="w-full">
-                            <option value="5">5 seconds</option>
-                            <option value="10" selected>10 seconds</option>
-                            <option value="30">30 seconds</option>
-                            <option value="60">1 minute</option>
-                            <option value="300">5 minutes</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="flex items-center mb-2">
-                        <input type="checkbox" id="isRecurring" name="isRecurring" class="mr-2">
-                        <label class="font-medium" for="isRecurring">Recurring Reminder</label>
+    <div class="main-content flex flex-col">
+        <!-- Reminder Form Container -->
+        <div id="reminderFormContainer" class="form-card glass hidden">
+            <div class="form-container p-6">
+                <h2 class="text-xl font-bold mb-4">Create New Reminder</h2>
+                <form id="reminderForm" class="space-y-4">
+                    <div class="form-full">
+                        <label class="block mb-1 font-medium" for="title">Title</label>
+                        <input type="text" id="title" name="title" class="w-full" placeholder="Meeting with team" required>
                     </div>
 
-                    <div id="recurringOptions" class="pl-6 pt-2 space-y-3 hidden">
+                    <div class="form-full">
+                        <label class="block mb-1 font-medium" for="description">Description</label>
+                        <textarea id="description" name="description" class="w-full h-24" placeholder="Discuss project status and next steps"></textarea>
+                    </div>
+
+                    <div class="form-grid">
                         <div>
-                            <label class="block mb-1" for="recurrencePattern">Repeat</label>
-                            <select id="recurrencePattern" name="recurrencePattern" class="w-full">
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="yearly">Yearly</option>
+                            <label class="block mb-1 font-medium" for="date">Date</label>
+                            <input type="date" id="date" name="date" class="w-full" required>
+                        </div>
+                        <div>
+                            <label class="block mb-1 font-medium" for="time">Time</label>
+                            <input type="time" id="time" name="time" class="w-full" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div>
+                            <label class="block mb-1 font-medium" for="reminderType">Type</label>
+                            <select id="reminderType" name="reminderType" class="w-full">
+                                <option value="meeting">Meeting</option>
+                                <option value="deadline">Deadline</option>
+                                <option value="personal">Personal</option>
+                                <option value="other">Other</option>
                             </select>
                         </div>
-
-                        <div id="weekDaysSelector" class="hidden">
-                            <label class="block mb-2">Repeat on</label>
-                            <div class="flex space-x-1">
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_0" class="mb-1">
-                                    <span class="text-xs">Sun</span>
-                                </label>
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_1" class="mb-1">
-                                    <span class="text-xs">Mon</span>
-                                </label>
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_2" class="mb-1">
-                                    <span class="text-xs">Tue</span>
-                                </label>
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_3" class="mb-1">
-                                    <span class="text-xs">Wed</span>
-                                </label>
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_4" class="mb-1">
-                                    <span class="text-xs">Thu</span>
-                                </label>
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_5" class="mb-1">
-                                    <span class="text-xs">Fri</span>
-                                </label>
-                                <label class="flex flex-col items-center">
-                                    <input type="checkbox" name="weekday_6" class="mb-1">
-                                    <span class="text-xs">Sat</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div id="monthDaySelector" class="hidden">
-                            <label class="block mb-1">Repeat on day</label>
-                            <input type="number" name="monthDay" min="1" max="31" class="w-full" value="1">
-                        </div>
-
                         <div>
-                            <label class="block mb-1" for="recurrenceEnd">End</label>
-                            <select id="recurrenceEnd" name="recurrenceEnd" class="w-full mb-2">
-                                <option value="never">Never</option>
-                                <option value="after">After occurrences</option>
-                                <option value="on-date">On date</option>
+                            <label class="block mb-1 font-medium" for="notificationDuration">Notification Duration</label>
+                            <select id="notificationDuration" name="notificationDuration" class="w-full">
+                                <option value="5">5 seconds</option>
+                                <option value="10" selected>10 seconds</option>
+                                <option value="30">30 seconds</option>
+                                <option value="60">1 minute</option>
+                                <option value="300">5 minutes</option>
                             </select>
+                        </div>
+                    </div>
 
-                            <div id="occurrencesInput" class="hidden">
-                                <input type="number" name="occurrences" min="1" max="999" class="w-full" value="10">
+                    <div class="form-full">
+                        <div class="flex items-center mb-2">
+                            <input type="checkbox" id="isRecurring" name="isRecurring" class="mr-2">
+                            <label class="font-medium" for="isRecurring">Recurring Reminder</label>
+                        </div>
+
+                        <div id="recurringOptions" class="pl-6 pt-2 space-y-3 hidden recurring-section">
+                            <div>
+                                <label class="block mb-1" for="recurrencePattern">Repeat</label>
+                                <select id="recurrencePattern" name="recurrencePattern" class="w-full">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="yearly">Yearly</option>
+                                </select>
                             </div>
 
-                            <div id="endDateInput" class="hidden">
-                                <input type="date" name="endDate" class="w-full">
+                            <div id="weekDaysSelector" class="hidden">
+                                <label class="block mb-2">Repeat on</label>
+                                <div class="weekday-selector">
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_0" class="mb-1">
+                                        <span class="text-xs">Sun</span>
+                                    </label>
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_1" class="mb-1">
+                                        <span class="text-xs">Mon</span>
+                                    </label>
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_2" class="mb-1">
+                                        <span class="text-xs">Tue</span>
+                                    </label>
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_3" class="mb-1">
+                                        <span class="text-xs">Wed</span>
+                                    </label>
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_4" class="mb-1">
+                                        <span class="text-xs">Thu</span>
+                                    </label>
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_5" class="mb-1">
+                                        <span class="text-xs">Fri</span>
+                                    </label>
+                                    <label class="weekday-item flex flex-col items-center">
+                                        <input type="checkbox" name="weekday_6" class="mb-1">
+                                        <span class="text-xs">Sat</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="monthDaySelector" class="hidden">
+                                <label class="block mb-1">Repeat on day</label>
+                                <input type="number" name="monthDay" min="1" max="31" class="w-full" value="1">
+                            </div>
+
+                            <div>
+                                <label class="block mb-1" for="recurrenceEnd">End</label>
+                                <select id="recurrenceEnd" name="recurrenceEnd" class="w-full mb-2">
+                                    <option value="never">Never</option>
+                                    <option value="after">After occurrences</option>
+                                    <option value="on-date">On date</option>
+                                </select>
+
+                                <div id="occurrencesInput" class="hidden">
+                                    <input type="number" name="occurrences" min="1" max="999" class="w-full" value="10">
+                                </div>
+
+                                <div id="endDateInput" class="hidden">
+                                    <input type="date" name="endDate" class="w-full">
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="flex justify-end space-x-3 pt-2">
-                    <button type="button" id="cancelReminderBtn" class="px-4 py-2 border border-gray-600 rounded-md hover:bg-gray-800">
-                        Cancel
-                    </button>
-                    <button type="submit" class="btn">
-                        Save Reminder
-                    </button>
-                </div>
-            </form>
+                    <div class="flex justify-end space-x-3 pt-2">
+                        <button type="button" id="cancelReminderBtn" class="px-4 py-2 border border-gray-600 rounded-md hover:bg-gray-800">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn interactive-hover interactive-active">
+                            Save Reminder
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
 
-        <div id="selectedDay" class="glass p-6">
-            <div id="noDaySelected" class="text-center py-10">
-                <i data-feather="calendar" class="h-12 w-12 mx-auto mb-3 text-gray-600"></i>
+        <!-- Selected Day -->
+        <div id="selectedDay" class="day-card glass">
+            <div id="noDaySelected" class="text-center p-10 flex flex-col items-center justify-center h-full">
+                <i data-feather="calendar" class="h-12 w-12 mb-3 text-gray-600"></i>
                 <h3 class="text-xl font-semibold mb-2">No Date Selected</h3>
                 <p class="text-gray-400">Select a day from the calendar to view or create reminders</p>
             </div>
 
-            <div id="dayContent" class="hidden">
-                <div class="flex items-center justify-between mb-6">
+            <div id="dayContent" class="hidden flex flex-col h-full">
+                <div class="flex items-center justify-between p-6 pb-4">
                     <h2 id="selectedDate" class="text-xl font-bold">June 11, 2025</h2>
-                    <button id="addReminderToDayBtn" class="btn flex items-center">
+                    <button id="addReminderToDayBtn" class="btn flex items-center interactive-hover interactive-active">
                         <i data-feather="plus" class="h-4 w-4 mr-2"></i>
                         Add Reminder
                     </button>
                 </div>
 
-                <div id="dayReminders" class="space-y-4">
+                <div id="dayReminders" class="day-reminders space-y-4 px-6 py-2">
                     <!-- Day reminders will be populated by JavaScript -->
                 </div>
             </div>
@@ -472,7 +618,7 @@
 <div id="settingsOverlay" class="overlay"></div>
 
 <!-- Settings Panel (side drawer) -->
-<div id="settingsPanel" class="settings-panel glass z-50 p-5 flex flex-col overflow-auto">
+<div id="settingsPanel" class="settings-panel glass z-50 p-5 flex flex-col">
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-xl font-bold">Settings</h2>
         <button id="closeSettingsBtn" class="p-1 hover:bg-gray-700 rounded">
@@ -480,7 +626,7 @@
         </button>
     </div>
 
-    <div class="space-y-6">
+    <div class="space-y-6 content-scrollable flex-1">
         <div>
             <h3 class="text-lg font-medium mb-3">Application</h3>
             <div class="space-y-3">
@@ -538,11 +684,11 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="mt-auto pt-3 border-t border-gray-700">
-            <p class="text-xs text-gray-400 mb-2" id="app-version">GitRemind v1.0.0</p>
-            <button id="resetAppBtn" class="btn-danger w-full py-2 rounded">Reset Application</button>
-        </div>
+    <div class="pt-3 border-t border-gray-700">
+        <p class="text-xs text-gray-400 mb-2" id="app-version">GitRemind v1.0.0</p>
+        <button id="resetAppBtn" class="btn-danger w-full py-2 rounded interactive-hover interactive-active">Reset Application</button>
     </div>
 </div>
 
@@ -571,6 +717,40 @@
             settingsPanel.classList.remove('visible');
             settingsOverlay.classList.remove('visible');
         });
+
+        // Toggle recurring options
+        const isRecurringCheckbox = document.getElementById('isRecurring');
+        const recurringOptions = document.getElementById('recurringOptions');
+
+        if (isRecurringCheckbox && recurringOptions) {
+            isRecurringCheckbox.addEventListener('change', function() {
+                recurringOptions.classList.toggle('hidden', !this.checked);
+            });
+        }
+
+        // Toggle recurrence pattern specific options
+        const recurrencePattern = document.getElementById('recurrencePattern');
+        const weekDaysSelector = document.getElementById('weekDaysSelector');
+        const monthDaySelector = document.getElementById('monthDaySelector');
+
+        if (recurrencePattern && weekDaysSelector && monthDaySelector) {
+            recurrencePattern.addEventListener('change', function() {
+                weekDaysSelector.classList.toggle('hidden', this.value !== 'weekly');
+                monthDaySelector.classList.toggle('hidden', this.value !== 'monthly');
+            });
+        }
+
+        // Toggle end recurrence options
+        const recurrenceEnd = document.getElementById('recurrenceEnd');
+        const occurrencesInput = document.getElementById('occurrencesInput');
+        const endDateInput = document.getElementById('endDateInput');
+
+        if (recurrenceEnd && occurrencesInput && endDateInput) {
+            recurrenceEnd.addEventListener('change', function() {
+                occurrencesInput.classList.toggle('hidden', this.value !== 'after');
+                endDateInput.classList.toggle('hidden', this.value !== 'on-date');
+            });
+        }
     });
 </script>
 <script src="./app.js"></script>

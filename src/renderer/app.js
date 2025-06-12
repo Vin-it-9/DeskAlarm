@@ -1,5 +1,5 @@
-const elements = {
 
+const elements = {
     settingsBtn: document.getElementById('settingsBtn'),
     closeSettingsBtn: document.getElementById('closeSettingsBtn'),
     settingsPanel: document.getElementById('settingsPanel'),
@@ -35,10 +35,11 @@ const elements = {
     selectedDate: document.getElementById('selectedDate'),
     dayReminders: document.getElementById('dayReminders'),
     addReminderToDayBtn: document.getElementById('addReminderToDayBtn'),
+    createReminderForTodayBtn: document.getElementById('createReminderForTodayBtn'),
 
     upcomingReminders: document.getElementById('upcomingReminders'),
 
-    appVersion: document.getElementById('app-version')
+    appVersion: document.querySelector('.text-xs.text-gray-400.mb-3')
 };
 
 const state = {
@@ -55,6 +56,7 @@ const state = {
     currentView: 'month',
     editingReminder: null,
     recurringWeekdays: [],
+    animationDuration: 300
 };
 
 async function initApp() {
@@ -65,6 +67,7 @@ async function initApp() {
     await loadReminders();
     renderCalendar();
     updateUpcomingReminders();
+    updateDisplayDates();
 }
 
 async function loadSettings() {
@@ -123,15 +126,15 @@ function applyGlassmorphismEffect() {
         });
     } else {
         document.querySelectorAll('.glass').forEach(el => {
-            el.style.backdropFilter = 'blur(8px)';
-            el.style.webkitBackdropFilter = 'blur(8px)';
-            el.style.background = 'rgba(22, 27, 34, 0.7)';
+            el.style.backdropFilter = 'blur(12px)';
+            el.style.webkitBackdropFilter = 'blur(12px)';
+            el.style.background = 'rgba(22, 27, 34, 0.75)';
         });
 
         document.querySelectorAll('.glass-nav').forEach(el => {
-            el.style.backdropFilter = 'blur(8px)';
-            el.style.webkitBackdropFilter = 'blur(8px)';
-            el.style.background = 'rgba(22, 27, 34, 0.9)';
+            el.style.backdropFilter = 'blur(12px)';
+            el.style.webkitBackdropFilter = 'blur(12px)';
+            el.style.background = 'rgba(22, 27, 34, 0.92)';
         });
     }
 }
@@ -143,6 +146,7 @@ function setupEventListeners() {
         elements.settingsBtn.addEventListener('click', () => {
             elements.settingsPanel.classList.add('visible');
             elements.settingsOverlay.classList.add('visible');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling
         });
     }
 
@@ -150,6 +154,7 @@ function setupEventListeners() {
         elements.closeSettingsBtn.addEventListener('click', () => {
             elements.settingsPanel.classList.remove('visible');
             elements.settingsOverlay.classList.remove('visible');
+            document.body.style.overflow = ''; // Enable scrolling
         });
     }
 
@@ -157,6 +162,7 @@ function setupEventListeners() {
         elements.settingsOverlay.addEventListener('click', () => {
             elements.settingsPanel.classList.remove('visible');
             elements.settingsOverlay.classList.remove('visible');
+            document.body.style.overflow = ''; // Enable scrolling
         });
     }
 
@@ -208,21 +214,73 @@ function setupEventListeners() {
 
     if (elements.isRecurringCheckbox && elements.recurringOptions) {
         elements.isRecurringCheckbox.addEventListener('change', function() {
-            elements.recurringOptions.classList.toggle('hidden', !this.checked);
+            if (this.checked) {
+                elements.recurringOptions.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.recurringOptions.classList.add('animate-fade-in');
+                }, 10);
+            } else {
+                elements.recurringOptions.classList.remove('animate-fade-in');
+                setTimeout(() => {
+                    elements.recurringOptions.classList.add('hidden');
+                }, state.animationDuration);
+            }
         });
     }
 
     if (elements.recurrencePattern && elements.weekDaysSelector && elements.monthDaySelector) {
         elements.recurrencePattern.addEventListener('change', function() {
-            elements.weekDaysSelector.classList.toggle('hidden', this.value !== 'weekly');
-            elements.monthDaySelector.classList.toggle('hidden', this.value !== 'monthly');
+            if (this.value === 'weekly') {
+                elements.weekDaysSelector.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.weekDaysSelector.classList.add('animate-fade-in');
+                }, 10);
+            } else {
+                elements.weekDaysSelector.classList.remove('animate-fade-in');
+                setTimeout(() => {
+                    elements.weekDaysSelector.classList.add('hidden');
+                }, state.animationDuration);
+            }
+
+            if (this.value === 'monthly') {
+                elements.monthDaySelector.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.monthDaySelector.classList.add('animate-fade-in');
+                }, 10);
+            } else {
+                elements.monthDaySelector.classList.remove('animate-fade-in');
+                setTimeout(() => {
+                    elements.monthDaySelector.classList.add('hidden');
+                }, state.animationDuration);
+            }
         });
     }
 
     if (elements.recurrenceEnd && elements.occurrencesInput && elements.endDateInput) {
         elements.recurrenceEnd.addEventListener('change', function() {
-            elements.occurrencesInput.classList.toggle('hidden', this.value !== 'after');
-            elements.endDateInput.classList.toggle('hidden', this.value !== 'on-date');
+            if (this.value === 'after') {
+                elements.occurrencesInput.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.occurrencesInput.classList.add('animate-fade-in');
+                }, 10);
+            } else {
+                elements.occurrencesInput.classList.remove('animate-fade-in');
+                setTimeout(() => {
+                    elements.occurrencesInput.classList.add('hidden');
+                }, state.animationDuration);
+            }
+
+            if (this.value === 'on-date') {
+                elements.endDateInput.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.endDateInput.classList.add('animate-fade-in');
+                }, 10);
+            } else {
+                elements.endDateInput.classList.remove('animate-fade-in');
+                setTimeout(() => {
+                    elements.endDateInput.classList.add('hidden');
+                }, state.animationDuration);
+            }
         });
     }
 
@@ -241,6 +299,14 @@ function setupEventListeners() {
     if (elements.addReminderToDayBtn) {
         elements.addReminderToDayBtn.addEventListener('click', () => {
             showReminderForm(state.selectedDate);
+        });
+    }
+
+    if (elements.createReminderForTodayBtn) {
+        elements.createReminderForTodayBtn.addEventListener('click', () => {
+            const today = new Date();
+            selectDay(today);
+            setTimeout(() => showReminderForm(today), 300);
         });
     }
 }
@@ -283,19 +349,29 @@ function renderCalendar() {
 
     for (let i = 0; i < startingDay; i++) {
         const emptyCell = document.createElement('div');
-        emptyCell.className = 'day text-gray-600';
+        emptyCell.className = 'day outside-month';
         elements.calendarDays.appendChild(emptyCell);
     }
 
     const today = new Date();
     const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+    const isSelectedMonth = state.selectedDate &&
+        state.selectedDate.getMonth() === month &&
+        state.selectedDate.getFullYear() === year;
 
     for (let day = 1; day <= totalDays; day++) {
         const dayCell = document.createElement('div');
-        dayCell.className = 'day hover:bg-gray-800';
+        dayCell.className = 'day';
         dayCell.textContent = day;
 
-        const dateString = formatDateString(new Date(year, month, day));
+        const currentDate = new Date(year, month, day);
+        const dayOfWeek = currentDate.getDay();
+
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            dayCell.classList.add('weekend');
+        }
+
+        const dateString = formatDateString(currentDate);
         const hasStandardReminders = state.reminders.some(reminder =>
             !reminder.isRecurring && reminder.date === dateString
         );
@@ -303,7 +379,6 @@ function renderCalendar() {
         const hasRecurringReminders = state.reminders.some(reminder => {
             if (!reminder.isRecurring) return false;
 
-            const currentDate = new Date(year, month, day);
             switch(reminder.recurrencePattern) {
                 case 'daily':
                     return true;
@@ -344,8 +419,15 @@ function renderCalendar() {
         if (isCurrentMonth && day === today.getDate()) {
             dayCell.classList.add('today');
         }
+        if (isSelectedMonth && state.selectedDate.getDate() === day) {
+            dayCell.classList.add('selected');
+        }
 
         dayCell.addEventListener('click', () => {
+            document.querySelectorAll('.day.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            dayCell.classList.add('selected');
             selectDay(new Date(year, month, day));
         });
 
@@ -354,7 +436,9 @@ function renderCalendar() {
 }
 
 function formatDateString(date) {
-    return window.utils.formatDate(date);
+    return window.utils && window.utils.formatDate ?
+        window.utils.formatDate(date) :
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function formatDisplayDate(date) {
@@ -370,10 +454,21 @@ function formatTime(timeString) {
     return `${hour12}:${minutes} ${ampm}`;
 }
 
+function updateDisplayDates() {
+    const today = new Date();
+    const formattedDate = formatDisplayDate(today);
+    document.querySelectorAll('.text-sm.text-gray-400').forEach(el => {
+        if (el.innerText && el.innerText.includes("Today's Date:")) {
+            el.innerText = `Today's Date: ${formattedDate}`;
+        }
+    });
+}
+
 function selectDay(date) {
     state.selectedDate = date;
     elements.noDaySelected.classList.add('hidden');
     elements.dayContent.classList.remove('hidden');
+    elements.dayContent.classList.add('animate-fade-in');
     elements.selectedDate.textContent = formatDisplayDate(date);
     showRemindersForDay(date);
 }
@@ -422,7 +517,6 @@ function reminderOccursOnDate(reminder, date) {
 }
 
 function showRemindersForDay(date) {
-
     const dayReminders = state.reminders.filter(reminder =>
         reminderOccursOnDate(reminder, date)
     );
@@ -431,12 +525,15 @@ function showRemindersForDay(date) {
 
     if (dayReminders.length === 0) {
         const noReminders = document.createElement('div');
-        noReminders.className = 'text-center py-5 text-gray-400';
+        noReminders.className = 'text-center py-8 text-gray-400 animate-fade-in';
         noReminders.innerHTML = `
-            <i data-feather="calendar" class="mx-auto mb-2 h-8 w-8 text-gray-600"></i>
-            <p>No reminders for this day</p>
-            <button id="quickAddReminder" class="mt-2 px-4 py-2 rounded text-blue-400 hover:bg-gray-800">
-                + Add reminder
+            <div class="bg-gray-800 bg-opacity-30 p-4 rounded-full inline-block mb-4">
+                <i data-feather="calendar" class="h-10 w-10 text-gray-600"></i>
+            </div>
+            <p class="mb-4">No reminders for this day</p>
+            <button id="quickAddReminder" class="btn px-5 py-2 rounded-lg flex items-center mx-auto">
+                <i data-feather="plus" class="h-4 w-4 mr-2"></i>
+                Add reminder
             </button>
         `;
         elements.dayReminders.appendChild(noReminders);
@@ -451,17 +548,18 @@ function showRemindersForDay(date) {
 
     dayReminders.sort((a, b) => a.time.localeCompare(b.time));
 
-    dayReminders.forEach(reminder => {
+    dayReminders.forEach((reminder, index) => {
         const reminderEl = createReminderElement(reminder, date);
-        elements.dayReminders.appendChild(reminderEl);
+        setTimeout(() => {
+            elements.dayReminders.appendChild(reminderEl);
+            feather.replace();
+        }, index * 100);
     });
-
-    feather.replace();
 }
 
 function createReminderElement(reminder, displayDate = null) {
     const reminderEl = document.createElement('div');
-    reminderEl.className = 'glass p-4 rounded-lg';
+    reminderEl.className = 'bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-700 hover:border-blue-500 hover:bg-opacity-70 transition-all duration-200 animate-fade-in shadow-md';
     reminderEl.dataset.id = reminder.id;
 
     if (reminder.isRecurring && displayDate) {
@@ -469,63 +567,64 @@ function createReminderElement(reminder, displayDate = null) {
         reminderEl.dataset.instanceDate = dateString;
     }
 
-    let typeIcon = 'alert-circle';
+    let typeIcon = 'bell';
+    let typeBadgeClass = 'type-other';
+
     switch(reminder.reminderType) {
         case 'meeting':
             typeIcon = 'users';
+            typeBadgeClass = 'type-meeting';
             break;
         case 'deadline':
             typeIcon = 'alert-triangle';
+            typeBadgeClass = 'type-deadline';
             break;
         case 'personal':
             typeIcon = 'heart';
+            typeBadgeClass = 'type-personal';
             break;
-        default:
-            typeIcon = 'bell';
     }
 
     let reminderContent = `
-        <div class="flex items-start justify-between">
-            <div class="flex items-start flex-1">
-                <div class="p-2 rounded-full bg-blue-900 bg-opacity-30 mr-3">
-                    <i data-feather="${typeIcon}" class="h-5 w-5 text-blue-400"></i>
-                </div>
-                <div class="flex-1">
-                    <div class="flex items-center justify-between">
-                        <h3 class="font-semibold text-lg">${reminder.title}</h3>
-                        <div class="flex space-x-2">
-                            <button class="edit-reminder p-1 hover:bg-gray-700 rounded">
-                                <i data-feather="edit-2" class="h-4 w-4"></i>
-                            </button>
-                            <button class="delete-reminder p-1 hover:bg-gray-700 rounded">
-                                <i data-feather="trash-2" class="h-4 w-4"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="text-sm text-gray-400 flex items-center mt-1">
-                        <i data-feather="clock" class="h-3 w-3 mr-1"></i>
-                        ${formatTime(reminder.time)}
-                    </div>
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <div class="flex items-center mb-1">
+                    <span class="type-badge ${typeBadgeClass} mr-2">
+                        <i data-feather="${typeIcon}" class="h-3 w-3 mr-1"></i>
+                        ${reminder.reminderType.charAt(0).toUpperCase() + reminder.reminderType.slice(1)}
+                    </span>
     `;
 
     if (reminder.isRecurring) {
-        reminderContent += `
-            <div class="flex items-center mt-2">
-                <span class="recurring-badge flex items-center">
-                    <i data-feather="repeat" class="h-3 w-3 mr-1"></i>
-                    ${window.utils.formatRecurrencePattern(reminder)}
-                </span>
-            </div>
-        `;
-    }
+        const recurrenceText = window.utils && window.utils.formatRecurrencePattern ?
+            window.utils.formatRecurrencePattern(reminder) :
+            reminder.recurrencePattern.charAt(0).toUpperCase() + reminder.recurrencePattern.slice(1);
 
-    if (reminder.description) {
-        reminderContent += `<p class="mt-2 text-gray-300">${reminder.description}</p>`;
+        reminderContent += `
+                    <span class="recurring-badge flex items-center text-xs">
+                        <i data-feather="repeat" class="h-3 w-3 mr-1"></i>
+                        ${recurrenceText}
+                    </span>
+        `;
     }
 
     reminderContent += `
                 </div>
+                <h3 class="text-lg font-semibold">${reminder.title}</h3>
+                ${reminder.description ? `<p class="text-gray-400 text-sm mt-1">${reminder.description}</p>` : ''}
             </div>
+            <div class="text-right">
+                <div class="text-gray-300 font-medium">${formatTime(reminder.time)}</div>
+                <div class="text-xs text-gray-500 mt-1">${reminder.notificationDuration} sec notification</div>
+            </div>
+        </div>
+        <div class="flex justify-end mt-3 space-x-2">
+            <button class="edit-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Edit">
+                <i data-feather="edit-2" class="h-4 w-4"></i>
+            </button>
+            <button class="delete-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Delete">
+                <i data-feather="trash-2" class="h-4 w-4"></i>
+            </button>
         </div>
     `;
 
@@ -555,7 +654,6 @@ async function loadReminders() {
 }
 
 function updateUpcomingReminders() {
-
     elements.upcomingReminders.innerHTML = '';
 
     const today = new Date();
@@ -585,19 +683,21 @@ function updateUpcomingReminders() {
 
     if (upcoming.length === 0) {
         const noUpcoming = document.createElement('div');
-        noUpcoming.className = 'flex items-center text-sm text-gray-400';
+        noUpcoming.className = 'flex items-center text-sm text-gray-400 py-2 px-3 rounded-lg';
         noUpcoming.innerHTML = `
             <i data-feather="calendar" class="h-4 w-4 mr-2 text-gray-500"></i>
             No upcoming reminders
         `;
         elements.upcomingReminders.appendChild(noUpcoming);
     } else {
-        upcoming.slice(0, 5).forEach(reminder => {
+        upcoming.slice(0, 5).forEach((reminder, index) => {
             const reminderDate = new Date(reminder.instanceDate + 'T' + reminder.time);
             const isToday = new Date(reminder.instanceDate).setHours(0, 0, 0, 0) === today.getTime();
 
             const reminderEl = document.createElement('div');
-            reminderEl.className = 'text-sm p-2 hover:bg-gray-800 rounded cursor-pointer';
+            reminderEl.className = 'text-sm p-3 hover:bg-gray-800 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800 bg-opacity-30 border border-transparent hover:border-gray-700';
+            reminderEl.style.animationDelay = `${index * 100}ms`;
+            reminderEl.classList.add('animate-fade-in');
 
             let dateText;
             if (isToday) {
@@ -614,24 +714,47 @@ function updateUpcomingReminders() {
                 }
             }
 
+            let typeIcon = 'bell';
+            switch(reminder.reminderType) {
+                case 'meeting': typeIcon = 'users'; break;
+                case 'deadline': typeIcon = 'alert-triangle'; break;
+                case 'personal': typeIcon = 'heart'; break;
+            }
+
             let reminderContent = `
-                <div class="font-semibold">${reminder.title}</div>
-                <div class="flex justify-between mt-1 text-xs text-gray-400">
-                    <span>${dateText}</span>
-                    <span>${formatTime(reminder.time)}</span>
-                </div>
+                <div class="flex items-start">
+                    <div class="p-1.5 rounded-full bg-blue-900 bg-opacity-20 mr-2.5 mt-0.5">
+                        <i data-feather="${typeIcon}" class="h-3 w-3 text-blue-400"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-semibold">${reminder.title}</div>
+                        <div class="flex justify-between mt-1 text-xs text-gray-400">
+                            <span class="flex items-center">
+                                <i data-feather="calendar" class="h-3 w-3 mr-1"></i>
+                                ${dateText}
+                            </span>
+                            <span class="flex items-center">
+                                <i data-feather="clock" class="h-3 w-3 mr-1"></i>
+                                ${formatTime(reminder.time)}
+                            </span>
+                        </div>
             `;
 
             if (reminder.isRecurring) {
                 reminderContent += `
-                    <div class="mt-1">
-                        <span class="text-xs text-purple-400 flex items-center">
-                            <i data-feather="repeat" class="h-2 w-2 mr-1"></i>
-                            Recurring
-                        </span>
-                    </div>
+                        <div class="mt-1.5">
+                            <span class="text-xs text-purple-400 flex items-center">
+                                <i data-feather="repeat" class="h-3 w-3 mr-1"></i>
+                                Recurring
+                            </span>
+                        </div>
                 `;
             }
+
+            reminderContent += `
+                    </div>
+                </div>
+            `;
 
             reminderEl.innerHTML = reminderContent;
 
@@ -647,12 +770,17 @@ function updateUpcomingReminders() {
 }
 
 function showReminderForm(date = null) {
-
+    elements.reminderForm.reset();
     elements.recurringOptions.classList.add('hidden');
     elements.weekDaysSelector.classList.add('hidden');
     elements.monthDaySelector.classList.add('hidden');
     elements.occurrencesInput.classList.add('hidden');
     elements.endDateInput.classList.add('hidden');
+    elements.recurringOptions.classList.remove('animate-fade-in');
+    elements.weekDaysSelector.classList.remove('animate-fade-in');
+    elements.monthDaySelector.classList.remove('animate-fade-in');
+    elements.occurrencesInput.classList.remove('animate-fade-in');
+    elements.endDateInput.classList.remove('animate-fade-in');
 
     if (state.editingReminder) {
         elements.reminderForm.title.value = state.editingReminder.title;
@@ -666,10 +794,18 @@ function showReminderForm(date = null) {
         elements.isRecurringCheckbox.checked = state.editingReminder.isRecurring || false;
         if (state.editingReminder.isRecurring) {
             elements.recurringOptions.classList.remove('hidden');
+            setTimeout(() => {
+                elements.recurringOptions.classList.add('animate-fade-in');
+            }, 10);
+
             elements.recurrencePattern.value = state.editingReminder.recurrencePattern || 'daily';
 
             if (state.editingReminder.recurrencePattern === 'weekly' && state.editingReminder.weekdays) {
                 elements.weekDaysSelector.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.weekDaysSelector.classList.add('animate-fade-in');
+                }, 10);
+
                 for (let i = 0; i < 7; i++) {
                     const checkbox = elements.reminderForm[`weekday_${i}`];
                     if (checkbox) {
@@ -680,6 +816,10 @@ function showReminderForm(date = null) {
 
             if (state.editingReminder.recurrencePattern === 'monthly') {
                 elements.monthDaySelector.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.monthDaySelector.classList.add('animate-fade-in');
+                }, 10);
+
                 elements.reminderForm.monthDay.value = state.editingReminder.monthDay ||
                     new Date(state.editingReminder.date).getDate();
             }
@@ -687,15 +827,21 @@ function showReminderForm(date = null) {
             elements.recurrenceEnd.value = state.editingReminder.recurrenceEnd || 'never';
             if (state.editingReminder.recurrenceEnd === 'after') {
                 elements.occurrencesInput.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.occurrencesInput.classList.add('animate-fade-in');
+                }, 10);
+
                 elements.reminderForm.occurrences.value = state.editingReminder.occurrences || 10;
             } else if (state.editingReminder.recurrenceEnd === 'on-date') {
                 elements.endDateInput.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.endDateInput.classList.add('animate-fade-in');
+                }, 10);
+
                 elements.reminderForm.endDate.value = state.editingReminder.endDate || '';
             }
         }
     } else {
-
-        elements.reminderForm.reset();
         elements.isRecurringCheckbox.checked = false;
         elements.reminderForm.notificationDuration.value = state.settings.defaultNotificationDuration || 10;
 
@@ -714,11 +860,17 @@ function showReminderForm(date = null) {
     }
 
     elements.reminderFormContainer.classList.remove('hidden');
+    setTimeout(() => {
+        elements.reminderFormContainer.classList.add('animate-scale-in');
+    }, 10);
 }
 
 function hideReminderForm() {
-    elements.reminderFormContainer.classList.add('hidden');
-    state.editingReminder = null;
+    elements.reminderFormContainer.classList.remove('animate-scale-in');
+    setTimeout(() => {
+        elements.reminderFormContainer.classList.add('hidden');
+        state.editingReminder = null;
+    }, state.animationDuration);
 }
 
 async function handleReminderSubmit(e) {
@@ -817,52 +969,93 @@ async function deleteReminder(id) {
     }
 }
 
-window.api.receive('show-reminder', (reminderId) => {
-    try {
-        const reminder = state.reminders.find(r => r.id === reminderId);
-        if (reminder) {
-            let dateToShow = new Date(reminder.date);
-            if (reminder.isRecurring) {
-                dateToShow = new Date();
-            }
-            selectDay(dateToShow);
-            setTimeout(() => {
-                const reminderEl = document.querySelector(`[data-id="${reminderId}"]`);
-                if (reminderEl) {
-                    reminderEl.classList.add('bg-blue-900', 'bg-opacity-20');
-                    reminderEl.scrollIntoView({ behavior: 'smooth' });
-                    setTimeout(() => {
-                        reminderEl.classList.remove('bg-blue-900', 'bg-opacity-20');
-                    }, 3000);
+if (window.api && window.api.receive) {
+    window.api.receive('show-reminder', (reminderId) => {
+        try {
+            const reminder = state.reminders.find(r => r.id === reminderId);
+            if (reminder) {
+                let dateToShow = new Date(reminder.date);
+                if (reminder.isRecurring) {
+                    dateToShow = new Date();
                 }
-            }, 300);
-        } else {
-            console.warn("Reminder not found:", reminderId);
+                selectDay(dateToShow);
+                setTimeout(() => {
+                    const reminderEl = document.querySelector(`[data-id="${reminderId}"]`);
+                    if (reminderEl) {
+                        reminderEl.classList.add('bg-blue-900', 'bg-opacity-20');
+                        reminderEl.scrollIntoView({ behavior: 'smooth' });
+                        setTimeout(() => {
+                            reminderEl.classList.remove('bg-blue-900', 'bg-opacity-20');
+                        }, 3000);
+                    }
+                }, 300);
+            } else {
+                console.warn("Reminder not found:", reminderId);
+            }
+        } catch (error) {
+            console.error('Error showing reminder:', error);
         }
-    } catch (error) {
-        console.error('Error showing reminder:', error);
-    }
-});
+    });
 
-window.api.receive('show-reminder-fallback', (reminder) => {
-    try {
-        console.log("Showing fallback notification:", reminder.title);
+    window.api.receive('show-reminder-fallback', (reminder) => {
+        try {
+            console.log("Showing fallback notification:", reminder.title);
 
-        window.utils.showFallbackNotification(
-            reminder.title,
-            reminder.description || 'Click to view reminder'
-        );
+            if (window.utils && window.utils.showFallbackNotification) {
+                window.utils.showFallbackNotification(
+                    reminder.title,
+                    reminder.description || 'Click to view reminder'
+                );
+            }
 
-        document.body.classList.add('animate-pulse');
-        setTimeout(() => {
-            document.body.classList.remove('animate-pulse');
-        }, 2000);
-    } catch (error) {
-        console.error('Error showing fallback notification:', error);
-    }
-});
+            document.body.classList.add('animate-pulse');
+            setTimeout(() => {
+                document.body.classList.remove('animate-pulse');
+            }, 2000);
+        } catch (error) {
+            console.error('Error showing fallback notification:', error);
+        }
+    });
+}
+
+if (!window.api) {
+    console.warn('window.api not found, creating mock implementation for development');
+    window.api = {
+        settings: {
+            get: async () => ({}),
+            save: async (settings) => settings,
+            reset: async () => true
+        },
+        invoke: async (channel, ...args) => {
+            console.log(`Mock invoke: ${channel}`, args);
+            if (channel === 'get-reminders') return [];
+            if (channel === 'save-reminder') return args[0];
+            if (channel === 'delete-reminder') return true;
+            return null;
+        },
+        receive: (channel, callback) => {
+            console.log(`Mock register receiver for ${channel}`);
+        }
+    };
+}
+
+if (!window.utils) {
+    console.warn('window.utils not found, creating mock implementation for development');
+    window.utils = {
+        formatDate: (date) => {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        },
+        formatRecurrencePattern: (reminder) => {
+            return reminder.recurrencePattern.charAt(0).toUpperCase() + reminder.recurrencePattern.slice(1);
+        },
+        showFallbackNotification: (title, body) => {
+            console.log(`Mock notification: ${title} - ${body}`);
+        }
+    };
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log("DOM loaded, initializing app...");
+    feather.replace();
     initApp();
 });

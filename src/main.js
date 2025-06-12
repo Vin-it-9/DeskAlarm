@@ -2,18 +2,31 @@ const { app, BrowserWindow, ipcMain, Menu, Tray, shell, dialog, Notification, sc
 const path = require('path');
 const fs = require('fs');
 const AutoLaunch = require('auto-launch');
+const isDevelopment = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+if (process.argv.includes('--disable-gpu')) {
+    app.disableHardwareAcceleration();
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+    return;
+}
 
 let mainWindow;
-let tray;
-let forceQuit = false;
+let tray = null;
+let forceQuit = isDevelopment;
 let windowPosition = { x: null, y: null };
-const dataFilePath = path.join(app.getPath('userData'), 'reminders.json');
-const settingsFilePath = path.join(app.getPath('userData'), 'settings.json');
+let reminderCheckInterval = null;
 const activeNotifications = new Map();
+const userDataPath = app.getPath('userData');
+const dataFilePath = path.join(userDataPath, 'reminders.json');
+const settingsFilePath = path.join(userDataPath, 'settings.json');
 
 let appSettings = {
-    startWithSystem: true,
-    minimizeToTray: true,
+    startWithSystem: false,
+    minimizeToTray: !isDevelopment,
     defaultNotificationDuration: 10,
     playSoundOnNotification: true,
     glassmorphismEffect: true,
@@ -21,17 +34,19 @@ let appSettings = {
 };
 
 const gitRemindAutoLauncher = new AutoLaunch({
-    name: 'GitRemind',
-    path: app.getPath('exe'),
+    name: isDevelopment ? 'GitRemind-Dev' : 'GitRemind',
+    path: app.getPath('exe')
 });
 
+if (isDevelopment) {
+    gitRemindAutoLauncher.disable().catch(() => {});
+}
+
 function ensureDataDirectory() {
-    const userDataPath = app.getPath('userData');
     if (!fs.existsSync(userDataPath)) {
         try {
             fs.mkdirSync(userDataPath, { recursive: true });
         } catch (err) {
-            console.error('Failed to create user data directory:', err);
             const fallbackPath = path.join(app.getPath('documents'), 'GitRemind');
             if (!fs.existsSync(fallbackPath)) {
                 fs.mkdirSync(fallbackPath, { recursive: true });
@@ -44,132 +59,80 @@ function ensureDataDirectory() {
 
 function loadSettings() {
     try {
-        const userDataPath = ensureDataDirectory();
-        const settingsPath = path.join(userDataPath, 'settings.json');
+        const settingsPath = path.join(ensureDataDirectory(), 'settings.json');
 
         if (fs.existsSync(settingsPath)) {
             const data = fs.readFileSync(settingsPath, 'utf8');
             const loadedSettings = JSON.parse(data);
             appSettings = { ...appSettings, ...loadedSettings };
+        }
+
+        if (isDevelopment) {
+            appSettings.startWithSystem = false;
+            if (gitRemindAutoLauncher) {
+                gitRemindAutoLauncher.disable().catch(() => {});
+            }
+        } else if (appSettings.startWithSystem) {
+            gitRemindAutoLauncher.enable().catch(() => {});
         } else {
-            saveSettings();
+            gitRemindAutoLauncher.disable().catch(() => {});
         }
     } catch (error) {
-        console.error('Error loading settings:', error);
-    }
-
-    if (appSettings.startWithSystem) {
-        gitRemindAutoLauncher.enable().catch(err => console.error('Auto-launch error:', err));
-    } else {
-        gitRemindAutoLauncher.disable().catch(err => console.error('Auto-launch disable error:', err));
+        if (!isDevelopment) saveSettings();
     }
 }
 
 function saveSettings() {
     try {
-        const userDataPath = ensureDataDirectory();
-        const settingsPath = path.join(userDataPath, 'settings.json');
+        const settingsPath = path.join(ensureDataDirectory(), 'settings.json');
+
+        if (isDevelopment) {
+            appSettings.startWithSystem = false;
+        }
+
         fs.writeFileSync(settingsPath, JSON.stringify(appSettings, null, 2));
-    } catch (error) {
-        console.error('Error saving settings:', error);
-    }
+    } catch (error) {}
 }
 
-function createMainWindow() {
-    app.commandLine.appendSwitch('ignore-gpu-blocklist');
-    app.commandLine.appendSwitch('disable-gpu-compositing');
-    app.commandLine.appendSwitch('disable-gpu-memory-buffer-video-frames');
-    app.commandLine.appendSwitch('disable-accelerated-video-decode');
-    app.commandLine.appendSwitch('disable-accelerated-video-encode');
+function resolveAssetPath(assetName) {
+    const possiblePaths = [
+        path.join(__dirname, 'assets', assetName),
+        path.join(__dirname, '../assets', assetName),
+        path.join(app.getAppPath(), 'assets', assetName)
+    ];
 
-    if (process.argv.includes('--disable-gpu')) {
-        app.disableHardwareAcceleration();
-    }
-
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-
-    mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 700,
-        minWidth: 800,
-        minHeight: 600,
-        frame: true,
-        backgroundColor: '#0d1117',
-        show: false,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
-            enableRemoteModule: false,
-            partition: 'persist:gitremind',
-            additionalArguments: ['--disable-http-cache']
-        },
-        icon: path.join(__dirname, '../assets/logo.png')
-    });
-
-    mainWindow.setMenu(null);
-
-    if (windowPosition.x === null || windowPosition.y === null) {
-        mainWindow.center();
-    } else {
-        mainWindow.setPosition(windowPosition.x, windowPosition.y);
-    }
-
-    mainWindow.loadFile('src/renderer/index.html');
-
-    mainWindow.on('close', (event) => {
-        if (!forceQuit && appSettings.minimizeToTray) {
-            event.preventDefault();
-            mainWindow.hide();
-            if (!app.getLoginItemSettings().wasOpenedAtLogin) {
-                tray.displayBalloon({
-                    title: 'GitRemind is still running',
-                    content: 'The app is now minimized to the system tray. Right-click the tray icon for options.'
-                });
-            }
-            return false;
+    for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+            return testPath;
         }
-    });
+    }
 
-    mainWindow.on('moved', () => {
-        const position = mainWindow.getPosition();
-        windowPosition = { x: position[0], y: position[1] };
-    });
+    return path.join(__dirname, '../assets', assetName);
+}
 
-    mainWindow.on('ready-to-show', () => {
-        mainWindow.show();
-    });
+function resolveHtmlPath(htmlFileName) {
+    const possiblePaths = [
+        path.join(__dirname, htmlFileName),
+        path.join(__dirname, 'renderer', htmlFileName),
+        path.join(app.getAppPath(), htmlFileName)
+    ];
 
-    mainWindow.webContents.on('crashed', () => {
-        console.error('Renderer process crashed. Restarting window...');
-        createMainWindow();
-    });
+    for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+            return testPath;
+        }
+    }
 
-    mainWindow.on('unresponsive', () => {
-        console.error('Window became unresponsive');
-        dialog.showMessageBox({
-            type: 'warning',
-            title: 'Application Not Responding',
-            message: 'GitRemind is not responding. Would you like to restart it?',
-            buttons: ['Wait', 'Restart'],
-            defaultId: 1
-        }).then(result => {
-            if (result.response === 1) {
-                app.relaunch();
-                app.exit(0);
-            }
-        });
-    });
-
-    createTray();
-    const checkIntervalMs = (appSettings.checkInterval || 5) * 1000;
-    setInterval(checkReminders, checkIntervalMs);
-    setTimeout(checkReminders, 1000);
+    return path.join(__dirname, 'renderer', htmlFileName);
 }
 
 function createTray() {
+    if (isDevelopment && !appSettings.minimizeToTray) return;
+
     try {
-        tray = new Tray(path.join(__dirname, '../assets/logo.png'));
+        const iconPath = resolveAssetPath('logo.png');
+        tray = new Tray(iconPath);
+
         const contextMenu = Menu.buildFromTemplate([
             {
                 label: 'Open GitRemind',
@@ -186,15 +149,21 @@ function createTray() {
             },
             { type: 'separator' },
             {
-                label: 'Start on System Boot',
+                label: 'Start with System',
                 type: 'checkbox',
                 checked: appSettings.startWithSystem,
+                enabled: !isDevelopment,
                 click: (menuItem) => {
+                    if (isDevelopment) {
+                        menuItem.checked = false;
+                        return;
+                    }
+
                     appSettings.startWithSystem = menuItem.checked;
                     if (menuItem.checked) {
-                        gitRemindAutoLauncher.enable().catch(err => console.error('Auto-launch error:', err));
+                        gitRemindAutoLauncher.enable().catch(() => {});
                     } else {
-                        gitRemindAutoLauncher.disable().catch(err => console.error('Auto-launch disable error:', err));
+                        gitRemindAutoLauncher.disable().catch(() => {});
                     }
                     saveSettings();
                 }
@@ -203,7 +172,12 @@ function createTray() {
                 label: 'Minimize to Tray on Close',
                 type: 'checkbox',
                 checked: appSettings.minimizeToTray,
+                enabled: !isDevelopment,
                 click: (menuItem) => {
+                    if (isDevelopment) {
+                        menuItem.checked = false;
+                        return;
+                    }
                     appSettings.minimizeToTray = menuItem.checked;
                     saveSettings();
                 }
@@ -218,44 +192,132 @@ function createTray() {
             }
         ]);
 
-        tray.setToolTip('GitRemind');
+        tray.setToolTip(isDevelopment ? 'GitRemind (Development)' : 'GitRemind');
         tray.setContextMenu(contextMenu);
+
         tray.on('double-click', () => {
             if (mainWindow) {
                 mainWindow.show();
                 mainWindow.focus();
             }
         });
-    } catch (error) {
-        console.error('Error creating tray:', error);
+    } catch (error) {}
+}
+
+function createMainWindow() {
+    app.commandLine.appendSwitch('ignore-gpu-blocklist');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    app.commandLine.appendSwitch('disable-gpu-memory-buffer-video-frames');
+    app.commandLine.appendSwitch('disable-accelerated-video-decode');
+    app.commandLine.appendSwitch('disable-accelerated-video-encode');
+
+    const partitionName = isDevelopment ? 'persist:gitremind-dev' : 'persist:gitremind';
+
+    mainWindow = new BrowserWindow({
+        width: 1000,
+        height: 700,
+        minWidth: 800,
+        minHeight: 600,
+        frame: true,
+        backgroundColor: '#0d1117',
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+            enableRemoteModule: false,
+            partition: partitionName,
+            additionalArguments: ['--disable-http-cache'],
+            devTools: isDevelopment
+        },
+        icon: resolveAssetPath('logo.png')
+    });
+
+    mainWindow.setMenu(null);
+
+    if (windowPosition.x === null || windowPosition.y === null) {
+        mainWindow.center();
+    } else {
+        mainWindow.setPosition(windowPosition.x, windowPosition.y);
+    }
+
+    const htmlPath = resolveHtmlPath('index.html');
+    mainWindow.loadFile(htmlPath);
+
+    mainWindow.on('close', (event) => {
+        if (isDevelopment) {
+            forceQuit = true;
+            clearAllIntervals();
+            if (tray) tray.destroy();
+            return;
+        }
+
+        if (!forceQuit && appSettings.minimizeToTray) {
+            event.preventDefault();
+            mainWindow.hide();
+            return false;
+        }
+    });
+
+    mainWindow.on('moved', () => {
+        const position = mainWindow.getPosition();
+        windowPosition = { x: position[0], y: position[1] };
+    });
+
+    mainWindow.on('ready-to-show', () => {
+        mainWindow.show();
+    });
+
+    mainWindow.webContents.on('crashed', () => {
+        createMainWindow();
+    });
+
+    mainWindow.on('unresponsive', () => {
+        dialog.showMessageBox({
+            type: 'warning',
+            title: 'Application Not Responding',
+            message: 'GitRemind is not responding. Would you like to restart it?',
+            buttons: ['Wait', 'Restart'],
+            defaultId: 1
+        }).then(result => {
+            if (result.response === 1) {
+                app.relaunch();
+                app.exit(0);
+            }
+        });
+    });
+
+    return mainWindow;
+}
+
+function clearAllIntervals() {
+    if (reminderCheckInterval) {
+        clearInterval(reminderCheckInterval);
+        reminderCheckInterval = null;
     }
 }
 
 function getReminders() {
     try {
-        const userDataPath = ensureDataDirectory();
-        const reminderPath = path.join(userDataPath, 'reminders.json');
+        const reminderPath = path.join(ensureDataDirectory(), 'reminders.json');
 
         if (!fs.existsSync(reminderPath)) {
             return [];
         }
+
         const data = fs.readFileSync(reminderPath);
         return JSON.parse(data);
     } catch (error) {
-        console.error('Error reading reminders:', error);
         return [];
     }
 }
 
 function saveReminders(reminders) {
     try {
-        const userDataPath = ensureDataDirectory();
-        const reminderPath = path.join(userDataPath, 'reminders.json');
-
+        const reminderPath = path.join(ensureDataDirectory(), 'reminders.json');
         fs.writeFileSync(reminderPath, JSON.stringify(reminders, null, 2));
         return true;
     } catch (error) {
-        console.error('Error saving reminders:', error);
         return false;
     }
 }
@@ -313,7 +375,6 @@ function getNextOccurrence(date, reminder) {
             break;
 
         case 'weekly':
-
             if (reminder.weekdays && reminder.weekdays.length > 0) {
                 const currentDay = next.getDay();
                 let daysToAdd = 1;
@@ -338,9 +399,11 @@ function getNextOccurrence(date, reminder) {
                 next.setMonth(next.getMonth() + 1);
             }
             break;
+
         case 'yearly':
             next.setFullYear(next.getFullYear() + 1);
             break;
+
         default:
             next.setDate(next.getDate() + 1);
     }
@@ -363,14 +426,15 @@ function checkReminders() {
             if (reminder.isRecurring) {
                 reminderInstances = generateRecurringOccurrences(reminder);
             }
+
             for (const instance of reminderInstances) {
                 const reminderTime = new Date(instance.date + 'T' + instance.time);
                 const checkIntervalMs = (appSettings.checkInterval || 5) * 1000;
+
                 if (reminderTime <= now &&
                     reminderTime >= new Date(now - checkIntervalMs) &&
                     !instance.notified) {
 
-                    console.log(`Showing notification for: ${instance.title} (${reminderTime.toLocaleTimeString()})`);
                     showNotification(instance);
                     anyNotified = true;
                     const index = reminders.findIndex(r => r.id === reminder.id);
@@ -386,9 +450,7 @@ function checkReminders() {
         if (anyNotified) {
             saveReminders(reminders);
         }
-    } catch (error) {
-        console.error('Error checking reminders:', error);
-    }
+    } catch (error) {}
 }
 
 function showNotification(reminder) {
@@ -398,10 +460,13 @@ function showNotification(reminder) {
             existingNotification.close();
             activeNotifications.delete(reminder.id);
         }
+
+        const iconPath = resolveAssetPath('icon.png');
+
         const notification = new Notification({
             title: reminder.title,
             body: reminder.description || '',
-            icon: path.join(__dirname, 'assets/icon.png'),
+            icon: iconPath,
             silent: !appSettings.playSoundOnNotification,
             timeoutType: 'never'
         });
@@ -437,7 +502,6 @@ function showNotification(reminder) {
             }
         }, duration * 1000);
     } catch (error) {
-        console.error('Error showing notification:', error);
         if (mainWindow) {
             mainWindow.webContents.send('show-reminder-fallback', reminder);
         }
@@ -481,6 +545,7 @@ function setupIPC() {
                     }
                 }
             }
+
             if (!reminder.id) {
                 reminder.id = Date.now().toString();
                 reminders.push(reminder);
@@ -496,7 +561,6 @@ function setupIPC() {
             saveReminders(reminders);
             return reminder;
         } catch (error) {
-            console.error('Error saving reminder:', error);
             return null;
         }
     });
@@ -508,7 +572,6 @@ function setupIPC() {
             saveReminders(reminders);
             return true;
         } catch (error) {
-            console.error('Error deleting reminder:', error);
             return false;
         }
     });
@@ -525,27 +588,29 @@ function setupIPC() {
                 updateTimer = true;
             }
 
+            if (isDevelopment) {
+                settings.startWithSystem = false;
+            }
+
             appSettings = { ...appSettings, ...settings };
             saveSettings();
-            if (settings.hasOwnProperty('startWithSystem')) {
+
+            if (!isDevelopment && settings.hasOwnProperty('startWithSystem')) {
                 if (settings.startWithSystem) {
-                    gitRemindAutoLauncher.enable().catch(err => console.error('Auto-launch error:', err));
+                    gitRemindAutoLauncher.enable().catch(() => {});
                 } else {
-                    gitRemindAutoLauncher.disable().catch(err => console.error('Auto-launch disable error:', err));
+                    gitRemindAutoLauncher.disable().catch(() => {});
                 }
             }
 
             if (updateTimer) {
-                for (let i = 1; i < 10000; i++) {
-                    clearInterval(i);
-                }
+                clearAllIntervals();
                 const checkIntervalMs = (appSettings.checkInterval || 5) * 1000;
-                setInterval(checkReminders, checkIntervalMs);
+                reminderCheckInterval = setInterval(checkReminders, checkIntervalMs);
             }
 
             return appSettings;
         } catch (error) {
-            console.error('Error saving settings:', error);
             return appSettings;
         }
     });
@@ -564,28 +629,61 @@ function setupIPC() {
                 fs.unlinkSync(settingsPath);
             }
 
-            appSettings = {
-                startWithSystem: true,
-                minimizeToTray: true,
-                defaultNotificationDuration: 10,
-                playSoundOnNotification: true,
-                glassmorphismEffect: true,
-                checkInterval: 5
-            };
+            gitRemindAutoLauncher.disable().catch(() => {});
+
             app.relaunch();
             app.exit();
             return true;
         } catch (error) {
-            console.error('Error resetting app:', error);
+            return false;
+        }
+    });
+
+    ipcMain.handle('remove-from-startup', () => {
+        try {
+            gitRemindAutoLauncher.disable().catch(() => {});
+            appSettings.startWithSystem = false;
+            saveSettings();
+            return true;
+        } catch (error) {
             return false;
         }
     });
 }
 
-function setupErrorHandlers() {
-    process.on('uncaughtException', (error) => {
-        console.error('Uncaught Exception:', error);
-        try {
+function cleanupOnExit() {
+    clearAllIntervals();
+
+    activeNotifications.forEach((notification, id) => {
+        notification.close();
+    });
+    activeNotifications.clear();
+
+    if (tray) {
+        tray.destroy();
+        tray = null;
+    }
+
+    if (isDevelopment) {
+        gitRemindAutoLauncher.disable().catch(() => {});
+    }
+}
+
+app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    }
+});
+
+app.whenReady().then(() => {
+    try {
+        if (isDevelopment) {
+            gitRemindAutoLauncher.disable().catch(() => {});
+        }
+
+        process.on('uncaughtException', (error) => {
             if (mainWindow) {
                 dialog.showMessageBox(mainWindow, {
                     type: 'error',
@@ -593,54 +691,53 @@ function setupErrorHandlers() {
                     message: 'An unexpected error occurred',
                     detail: error.toString(),
                     buttons: ['OK']
-                });
+                }).catch(() => {});
             }
-        } catch (dialogError) {
-            console.error('Failed to show error dialog:', dialogError);
-        }
-    });
-
-    process.on('unhandledRejection', (reason, promise) => {
-        console.error('Unhandled Rejection:', reason);
-    });
-}
-
-app.whenReady().then(() => {
-    try {
-        setupErrorHandlers();
-        app.allowRendererProcessReuse = true;
-        app.setPath('userData', ensureDataDirectory());
+        });
 
         loadSettings();
+
+        if (!isDevelopment || appSettings.minimizeToTray) {
+            createTray();
+        }
+
         createMainWindow();
         setupIPC();
+
+        const checkIntervalMs = (appSettings.checkInterval || 5) * 1000;
+        reminderCheckInterval = setInterval(checkReminders, checkIntervalMs);
+        setTimeout(checkReminders, 1000);
     } catch (error) {
-        console.error('Error during app initialization:', error);
         dialog.showErrorBox(
             'GitRemind Startup Error',
-            `An error occurred during startup: ${error.message}\n\nThe application may not function correctly.`
+            `An error occurred during startup: ${error.message}`
         );
     }
-
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createMainWindow();
-        } else if (mainWindow) {
-            mainWindow.show();
-        }
-    });
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin' && !appSettings.minimizeToTray) {
+    if (isDevelopment || !appSettings.minimizeToTray) {
+        cleanupOnExit();
         app.quit();
     }
 });
 
 app.on('before-quit', () => {
     forceQuit = true;
-    activeNotifications.forEach((notification, id) => {
-        notification.close();
-    });
-    activeNotifications.clear();
+    cleanupOnExit();
+});
+
+app.on('will-quit', () => {
+    if (isDevelopment) {
+        gitRemindAutoLauncher.disable().catch(() => {});
+    }
+});
+
+app.on('quit', () => {
+    if (isDevelopment) {
+        const { exec } = require('child_process');
+        try {
+            exec('taskkill /F /IM electron.exe /T', () => {});
+        } catch (e) {}
+    }
 });
