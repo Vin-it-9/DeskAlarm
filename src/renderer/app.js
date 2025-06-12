@@ -59,7 +59,55 @@ const state = {
     editingReminder: null,
     recurringWeekdays: [],
     animationDuration: 300,
-    notifications: []
+    notifications: [],
+    progressiveNotifications: new Map(),
+    notificationThemes: {
+        leetcode: {
+            color: '#ffa116',
+            backgroundColor: 'rgba(255, 161, 22, 0.2)',
+            icon: 'code'
+        },
+        codechef: {
+            color: '#764abc',
+            backgroundColor: 'rgba(118, 74, 188, 0.2)',
+            icon: 'award'
+        },
+        codeforces: {
+            color: '#1c86ee',
+            backgroundColor: 'rgba(28, 134, 238, 0.2)',
+            icon: 'flag'
+        },
+        gfg: {
+            color: '#2ecc71',
+            backgroundColor: 'rgba(46, 204, 113, 0.2)',
+            icon: 'book'
+        },
+        coding: {
+            color: '#3498db',
+            backgroundColor: 'rgba(52, 152, 219, 0.2)',
+            icon: 'terminal'
+        },
+        meeting: {
+            color: '#3fb950',
+            backgroundColor: 'rgba(63, 185, 80, 0.2)',
+            icon: 'users'
+        },
+        deadline: {
+            color: '#f85149',
+            backgroundColor: 'rgba(248, 81, 73, 0.2)',
+            icon: 'alert-triangle'
+        },
+        personal: {
+            color: '#ff7b72',
+            backgroundColor: 'rgba(255, 123, 114, 0.2)',
+            icon: 'heart'
+        },
+        other: {
+            color: '#8b949e',
+            backgroundColor: 'rgba(139, 148, 158, 0.2)',
+            icon: 'bell'
+        }
+    }
 };
 
 async function initApp() {
@@ -606,7 +654,7 @@ function showRemindersForDay(date) {
 
 function createReminderElement(reminder, displayDate = null) {
     const reminderEl = document.createElement('div');
-    reminderEl.className = 'reminder-card animate-slide-up';
+    reminderEl.className = 'bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-700 hover:border-blue-500 hover:bg-opacity-70 transition-all duration-200 animate-fade-in shadow-md';
     reminderEl.dataset.id = reminder.id;
 
     if (reminder.isRecurring && displayDate) {
@@ -616,29 +664,61 @@ function createReminderElement(reminder, displayDate = null) {
 
     let typeIcon = 'bell';
     let typeBadgeClass = 'type-other';
+    let borderColor = '#8b949e';
 
     switch(reminder.reminderType) {
         case 'meeting':
             typeIcon = 'users';
             typeBadgeClass = 'type-meeting';
+            borderColor = '#3fb950';
             break;
         case 'deadline':
             typeIcon = 'alert-triangle';
             typeBadgeClass = 'type-deadline';
+            borderColor = '#f85149';
             break;
         case 'personal':
             typeIcon = 'heart';
             typeBadgeClass = 'type-personal';
+            borderColor = '#ff7b72';
+            break;
+        case 'leetcode':
+            typeIcon = 'code';
+            typeBadgeClass = 'type-leetcode';
+            borderColor = '#ffa116';
+            break;
+        case 'codechef':
+            typeIcon = 'award';
+            typeBadgeClass = 'type-codechef';
+            borderColor = '#764abc';
+            break;
+        case 'codeforces':
+            typeIcon = 'flag';
+            typeBadgeClass = 'type-codeforces';
+            borderColor = '#1c86ee';
+            break;
+        case 'gfg':
+            typeIcon = 'book';
+            typeBadgeClass = 'type-gfg';
+            borderColor = '#2ecc71';
+            break;
+        case 'coding':
+            typeIcon = 'terminal';
+            typeBadgeClass = 'type-coding';
+            borderColor = '#3498db';
             break;
     }
+
+    // Add a subtle border on the left to indicate the type
+    reminderEl.style.borderLeft = `4px solid ${borderColor}`;
 
     let reminderContent = `
         <div class="flex justify-between items-start">
             <div class="flex-1">
-                <div class="flex items-center mb-2">
+                <div class="flex items-center mb-1">
                     <span class="type-badge ${typeBadgeClass} mr-2">
                         <i data-feather="${typeIcon}" class="h-3 w-3 mr-1"></i>
-                        ${reminder.reminderType.charAt(0).toUpperCase() + reminder.reminderType.slice(1)}
+                        ${formatReminderType(reminder.reminderType)}
                     </span>
     `;
 
@@ -665,11 +745,11 @@ function createReminderElement(reminder, displayDate = null) {
                 <div class="text-xs text-gray-500 mt-1">${reminder.notificationDuration} sec notification</div>
             </div>
         </div>
-        <div class="flex justify-end mt-4 space-x-2">
-            <button class="edit-reminder p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-200 transition-all duration-200" title="Edit">
+        <div class="flex justify-end mt-3 space-x-2">
+            <button class="edit-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Edit">
                 <i data-feather="edit-2" class="h-4 w-4"></i>
             </button>
-            <button class="delete-reminder p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-200 transition-all duration-200" title="Delete">
+            <button class="delete-reminder p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition duration-200" title="Delete">
                 <i data-feather="trash-2" class="h-4 w-4"></i>
             </button>
         </div>
@@ -686,6 +766,20 @@ function createReminderElement(reminder, displayDate = null) {
     });
 
     return reminderEl;
+}
+
+function formatReminderType(type) {
+    switch(type) {
+        case 'meeting': return 'Meeting';
+        case 'deadline': return 'Deadline';
+        case 'personal': return 'Personal';
+        case 'leetcode': return 'LeetCode';
+        case 'codechef': return 'CodeChef';
+        case 'codeforces': return 'CodeForces';
+        case 'gfg': return 'GeeksForGeeks';
+        case 'coding': return 'Coding';
+        default: return type.charAt(0).toUpperCase() + type.slice(1);
+    }
 }
 
 async function loadReminders() {
@@ -737,9 +831,9 @@ function updateUpcomingReminders() {
         `;
         elements.upcomingReminders.appendChild(noUpcoming);
     } else {
-        upcoming.slice(0, 5).forEach((reminder, index) => {
-            const reminderDate = new Date(reminder.instanceDate + 'T' + reminder.time);
-            const isToday = new Date(reminder.instanceDate).setHours(0, 0, 0, 0) === today.getTime();
+        upcoming.slice(0, 5).forEach((reminderItem, index) => {
+            const reminderDate = new Date(reminderItem.instanceDate + 'T' + reminderItem.time);
+            const isToday = new Date(reminderItem.instanceDate).setHours(0, 0, 0, 0) === today.getTime();
 
             const reminderEl = document.createElement('div');
             reminderEl.className = 'text-sm p-3 hover:bg-gray-800 rounded-lg cursor-pointer transition-all duration-200 bg-gray-800 bg-opacity-30 border border-transparent hover:border-gray-700';
@@ -752,7 +846,7 @@ function updateUpcomingReminders() {
             } else {
                 const tomorrow = new Date(today);
                 tomorrow.setDate(today.getDate() + 1);
-                const isTomorrow = new Date(reminder.instanceDate).setHours(0, 0, 0, 0) === tomorrow.getTime();
+                const isTomorrow = new Date(reminderItem.instanceDate).setHours(0, 0, 0, 0) === tomorrow.getTime();
 
                 if (isTomorrow) {
                     dateText = 'Tomorrow';
@@ -761,20 +855,50 @@ function updateUpcomingReminders() {
                 }
             }
 
+            // Get appropriate icon based on reminder type
             let typeIcon = 'bell';
-            switch(reminder.reminderType) {
-                case 'meeting': typeIcon = 'users'; break;
-                case 'deadline': typeIcon = 'alert-triangle'; break;
-                case 'personal': typeIcon = 'heart'; break;
+            let iconColor = 'text-blue-400';
+
+            switch(reminderItem.reminderType) {
+                case 'meeting':
+                    typeIcon = 'users';
+                    break;
+                case 'deadline':
+                    typeIcon = 'alert-triangle';
+                    iconColor = 'text-red-400';
+                    break;
+                case 'personal':
+                    typeIcon = 'heart';
+                    iconColor = 'text-pink-400';
+                    break;
+                case 'leetcode':
+                    typeIcon = 'code';
+                    iconColor = 'text-yellow-400';
+                    break;
+                case 'codechef':
+                    typeIcon = 'award';
+                    iconColor = 'text-purple-400';
+                    break;
+                case 'codeforces':
+                    typeIcon = 'flag';
+                    iconColor = 'text-blue-500';
+                    break;
+                case 'gfg':
+                    typeIcon = 'book';
+                    iconColor = 'text-green-400';
+                    break;
+                case 'coding':
+                    typeIcon = 'terminal';
+                    break;
             }
 
             let reminderContent = `
                 <div class="flex items-start">
                     <div class="p-1.5 rounded-full bg-blue-900 bg-opacity-20 mr-2.5 mt-0.5">
-                        <i data-feather="${typeIcon}" class="h-3 w-3 text-blue-400"></i>
+                        <i data-feather="${typeIcon}" class="h-3 w-3 ${iconColor}"></i>
                     </div>
                     <div class="flex-1">
-                        <div class="font-semibold">${reminder.title}</div>
+                        <div class="font-semibold">${reminderItem.title}</div>
                         <div class="flex justify-between mt-1 text-xs text-gray-400">
                             <span class="flex items-center">
                                 <i data-feather="calendar" class="h-3 w-3 mr-1"></i>
@@ -782,12 +906,12 @@ function updateUpcomingReminders() {
                             </span>
                             <span class="flex items-center">
                                 <i data-feather="clock" class="h-3 w-3 mr-1"></i>
-                                ${formatTime(reminder.time)}
+                                ${formatTime(reminderItem.time)}
                             </span>
                         </div>
             `;
 
-            if (reminder.isRecurring) {
+            if (reminderItem.isRecurring) {
                 reminderContent += `
                         <div class="mt-1.5">
                             <span class="text-xs text-purple-400 flex items-center">
@@ -806,7 +930,7 @@ function updateUpcomingReminders() {
             reminderEl.innerHTML = reminderContent;
 
             reminderEl.addEventListener('click', () => {
-                selectDay(new Date(reminder.instanceDate));
+                selectDay(new Date(reminderItem.instanceDate));
             });
 
             elements.upcomingReminders.appendChild(reminderEl);
@@ -987,12 +1111,19 @@ async function handleReminderSubmit(e) {
             if (state.selectedDate) {
                 showRemindersForDay(state.selectedDate);
             }
+            if (['leetcode', 'codechef', 'codeforces', 'gfg', 'coding'].includes(reminder.reminderType)) {
+                const shouldScheduleProgressive = confirm("Would you like to receive progressive notifications for this coding contest?");
+                if (shouldScheduleProgressive) {
+                    window.api.invoke('schedule-progressive-notification', savedReminder);
+                    state.progressiveNotifications.set(savedReminder.id, true);
+                    showNotification("Progressive notifications scheduled for this contest", 'success');
+                }
+            }
             showNotification(state.editingReminder ? 'Reminder updated successfully' : 'Reminder created successfully', 'success');
         } else {
             console.error("Failed to save reminder");
             showNotification("Failed to save reminder", 'error');
         }
-
         hideReminderForm();
     } catch (error) {
         console.error('Error saving reminder:', error);

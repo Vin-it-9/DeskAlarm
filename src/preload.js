@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 contextBridge.exposeInMainWorld(
     'api', {
@@ -86,6 +87,37 @@ contextBridge.exposeInMainWorld(
             } catch (error) {
                 console.error('Error removing from startup:', error);
                 return false;
+            }
+        },
+
+        scheduleProgressiveNotification: async (reminder) => {
+            try {
+                return await ipcRenderer.invoke('schedule-progressive-notification', reminder);
+            } catch (error) {
+                console.error('Error scheduling progressive notification:', error);
+                return false;
+            }
+        },
+
+        notifications: {
+            schedule: async (reminder, options = {}) => {
+                try {
+                    return await ipcRenderer.invoke('schedule-progressive-notification', {
+                        ...reminder,
+                        isProgressiveNotification: options.progressive || false
+                    });
+                } catch (error) {
+                    console.error('Error scheduling notification:', error);
+                    return false;
+                }
+            },
+            cancel: async (id) => {
+                try {
+                    return await ipcRenderer.invoke('cancel-notification', id);
+                } catch (error) {
+                    console.error('Error canceling notification:', error);
+                    return false;
+                }
             }
         }
     }
@@ -301,16 +333,21 @@ contextBridge.exposeInMainWorld(
         getReminderTypeDetails: (type) => {
             try {
                 const types = {
-                    meeting: { icon: 'users', class: 'type-meeting', label: 'Meeting', color: 'var(--github-meeting)' },
-                    deadline: { icon: 'alert-triangle', class: 'type-deadline', label: 'Deadline', color: 'var(--github-deadline)' },
-                    personal: { icon: 'heart', class: 'type-personal', label: 'Personal', color: 'var(--github-personal)' },
-                    other: { icon: 'bell', class: 'type-other', label: 'Other', color: 'var(--github-other)' }
+                    meeting: { icon: 'users', class: 'type-meeting', label: 'Meeting', color: '#3fb950' },
+                    deadline: { icon: 'alert-triangle', class: 'type-deadline', label: 'Deadline', color: '#f85149' },
+                    personal: { icon: 'heart', class: 'type-personal', label: 'Personal', color: '#ff7b72' },
+                    leetcode: { icon: 'code', class: 'type-leetcode', label: 'LeetCode', color: '#ffa116' },
+                    codechef: { icon: 'award', class: 'type-codechef', label: 'CodeChef', color: '#764abc' },
+                    codeforces: { icon: 'flag', class: 'type-codeforces', label: 'CodeForces', color: '#1c86ee' },
+                    gfg: { icon: 'book', class: 'type-gfg', label: 'GeeksForGeeks', color: '#2ecc71' },
+                    coding: { icon: 'terminal', class: 'type-coding', label: 'Coding', color: '#3498db' },
+                    other: { icon: 'bell', class: 'type-other', label: 'Other', color: '#8b949e' }
                 };
 
                 return types[type] || types.other;
             } catch (error) {
                 console.error('Error getting reminder type details:', error);
-                return { icon: 'bell', class: 'type-other', label: 'Other', color: 'var(--github-other)' };
+                return { icon: 'bell', class: 'type-other', label: 'Other', color: '#8b949e' };
             }
         },
 
@@ -498,7 +535,7 @@ contextBridge.exposeInMainWorld('appInfo', {
     isWindows: process.platform === 'win32',
     isMac: process.platform === 'darwin',
     isLinux: process.platform === 'linux',
-    isDevelopment: process.env.NODE_ENV === 'development' || !require('electron').app.isPackaged,
+    isDevelopment: isDevelopment,
     currentDate: new Date().toISOString().split('T')[0],
     currentTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
     timestamp: Date.now()
@@ -629,6 +666,7 @@ const animationHelper = {
 };
 
 contextBridge.exposeInMainWorld('animations', animationHelper);
+
 contextBridge.exposeInMainWorld('domUtils', {
     selectElementContents: (element) => {
         if (!element) return;
@@ -677,8 +715,35 @@ contextBridge.exposeInMainWorld('domUtils', {
     }
 });
 
+ipcRenderer.on('animate-ui-element', (event, elementId, animationType) => {
+    try {
+        const element = document.getElementById(elementId);
+        if (element && animationHelper[animationType]) {
+            animationHelper[animationType](element);
+        }
+    } catch (error) {
+        console.error('Error animating UI element:', error);
+    }
+});
+
 window.addEventListener('DOMContentLoaded', () => {
     try {
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                20%, 40%, 60%, 80% { transform: translateX(5px); }
+            }
+            
+            .animate-shake {
+                animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+            }
+        `;
+        if (document && document.head) {
+            document.head.appendChild(styleSheet);
+        }
+
         const versionElement = document.getElementById('app-version');
         if (versionElement) {
             versionElement.textContent = `GitRemind v${process.env.npm_package_version || '1.0.0'}`;
@@ -715,30 +780,3 @@ window.addEventListener('DOMContentLoaded', () => {
         console.error('Error in DOMContentLoaded handler:', error);
     }
 });
-
-ipcRenderer.on('animate-ui-element', (event, elementId, animationType) => {
-    try {
-        const element = document.getElementById(elementId);
-        if (element && animationHelper[animationType]) {
-            animationHelper[animationType](element);
-        }
-    } catch (error) {
-        console.error('Error animating UI element:', error);
-    }
-});
-
-if (typeof document !== 'undefined') {
-    const styleSheet = document.createElement('style');
-    styleSheet.textContent = `
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-            20%, 40%, 60%, 80% { transform: translateX(5px); }
-        }
-        
-        .animate-shake {
-            animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-        }
-    `;
-    document.head.appendChild(styleSheet);
-}

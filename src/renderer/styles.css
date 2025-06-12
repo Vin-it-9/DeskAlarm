@@ -634,3 +634,28 @@ button:focus-visible {
     margin-top: 8px;
     border: 1px solid rgba(88, 166, 255, 0.3);
 }
+
+.type-leetcode {
+    background-color: rgba(255, 161, 22, 0.2);
+    color: #ffa116;
+}
+
+.type-codechef {
+    background-color: rgba(118, 74, 188, 0.2);
+    color: #764abc;
+}
+
+.type-codeforces {
+    background-color: rgba(28, 134, 238, 0.2);
+    color: #1c86ee;
+}
+
+.type-gfg {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.type-coding {
+    background-color: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+}
